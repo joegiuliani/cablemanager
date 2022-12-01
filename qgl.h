@@ -41,7 +41,7 @@ namespace qgl
 
         vec pos;
 
-        gradient fill;
+        gradient fill{ color(1), color(1) };
         gradient outline;
         gradient shadow;
 

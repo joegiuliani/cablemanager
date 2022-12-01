@@ -18,7 +18,7 @@ glm::vec3 hsv(float h, float s, float v)
 	float chroma = v * s;
 
 	//              = hue / 360d in [0,1] space
-	float hue_prime = h / 0.16667f;
+	float hue_prime = h * 6;
 	float x = chroma * (1.0f - abs(fmodf(hue_prime, 2.0f) - 1.0f));
 	glm::vec3 ret;
 	if (hue_prime < 3.0f)
@@ -65,16 +65,18 @@ public:
 	{
 		if (connection != nullptr)
 		{
-			connection->connection = nullptr;
-			connection->connection_severed();
+			if (connection->connection != this)
+			{
+				std::cout << "Invalid connection sever";
+			}
 
-			connection_severed();
+			connection->connection_severed();
 		}
 	}
 
 	void connection_severed()
 	{
-
+		connection = nullptr;
 	}
 };
 
@@ -82,13 +84,50 @@ class Node
 {
 public:
 	qgl::Shape& pane = qgl::new_Element<qgl::Shape>();
-	qgl::TextBox& label = qgl::new_Element<qgl::TextBox>();
+	qgl::TextBox& label = qgl::new_Element<qgl::TextBox>(&pane);
 	std::list<Port> inputs;
 	std::list<Port> outputs;
 	std::list<Port> uputs;
+
+	void on_drag(qgl::Element)
+	{
+
+	}
+
 	Node()
 	{
+		init();
 	}
+	Node(std::string name) :Node()
+	{
+		init();
+
+		label.set_text(name);
+		label.set_text_scale(18);
+		label.set_size(qgl::vec(75, 75));
+		label.fill.top = label.fill.bottom = qgl::color(1);
+	}
+
+	private:
+		void init()
+		{
+			pane.fill.top = qgl::color(0.3, 0.09, .15, 1);
+			pane.fill.bottom = pane.fill.top * 0.8f;
+			pane.set_size(qgl::vec(75, 75));
+
+
+			auto drag_element = [&](qgl::Element* element_ptr)
+			{
+				qgl::follow_mouse
+				(
+					element_ptr, // this
+					[&]() {return draw::is_mouse_released();} // condition to stop following the mouse
+				);
+			};
+
+			// Label will follow since its a child
+			pane.on_drag(drag_element);
+		}
 };
 
 int main()
@@ -101,7 +140,7 @@ int main()
 	// Then we can specify for each draw how many of those vertices were actually going to use
 
 
-	Node node;
+	Node node("Hello");
 
 	glm::vec2 in(20, 20);
 	glm::vec2 magnet(200, 400);
@@ -117,7 +156,7 @@ int main()
 	glm::vec2 pre_magnet = clamp_pos(magnet, in, k);
 	glm::vec2 post_magnet = clamp_pos(magnet, out, k);
 
-	qgl::Curve& curve = qgl::new_Element<qgl::Curve>();
+	/*qgl::Curve& curve = qgl::new_Element<qgl::Curve>();
 	curve.fill.top = glm::vec4(1);
 	curve.fill.bottom = curve.fill.top;
 
@@ -125,13 +164,13 @@ int main()
 	for (float k = 0; k <= resolution; k++)
 	{
 		curve.points.push_back(quadratic_bezier(k / resolution, in, magnet, out));
-	}
+	}*/
 
 	//draw_bezier(pre_magnet, magnet, post_magnet);
 	//draw::draw_curve({ in, pre_magnet });
 	//draw::draw_curve({ post_magnet, out });
 
-	qgl::TextBox& text_box = qgl::new_Element<qgl::TextBox>();
+	/*qgl::TextBox& text_box = qgl::new_Element<qgl::TextBox>();
 	text_box.fill.top = glm::vec4(1, 0, 1, 1);
 	text_box.fill.bottom = text_box.fill.top;
 	text_box.pos = glm::vec2(30, 30);
@@ -142,7 +181,7 @@ int main()
 	auto drag_element = [&](qgl::Element* element_ptr)
 	{
 		qgl::follow_mouse(element_ptr, [&]() {return draw::is_mouse_released(); });
-	};
+	};*/
 
     qgl::set_corner_size(5);
 

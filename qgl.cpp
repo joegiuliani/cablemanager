@@ -216,15 +216,21 @@ namespace qgl
     bool process_mouse_events(Element* element_ptr)
     {
         Element& element = *element_ptr;
-        // Elements drawn last are on top. We must search
+
+        // We draw one branch at a time in forward order, parent first
+        // So we'll have to go the opposite direction
+
         for (auto it = element.child_storage.rbegin(); it != element.child_storage.rend(); ++it)
         {
             if (process_mouse_events((*it).get()))
             {
+                // The the first, deepest element we iterate through that has mouse listening enabled is the only element that receives mouse events.
                 return true;
             }
         }
 
+        // If the element we're looking at doesn't care about the mouse, we continue looking down the branch.
+        // For instance if a moveable object has a non-interactive label, we still want to move the object even if we click on the label.
         if (!element.options[Element::MOUSE_LISTENER])
             return false;
 
