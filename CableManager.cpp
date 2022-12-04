@@ -6,6 +6,7 @@
 #include "draw.h"
 #include <glfw/glfw3.h>
 #include "qgl.h"
+#include <stack>
 
 glm::vec2 quadratic_bezier(float t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
 {
@@ -54,11 +55,18 @@ class Port
 {
 public:
 	std::string name;
+	unsigned long int id;
 	Port* connection = nullptr;
+
+	Port()
+	{
+		id = borrow_id();
+	}
 
 	~Port()
 	{
 		sever_connection();
+		yield_id(id);
 	}
 
 	void sever_connection()
@@ -77,6 +85,32 @@ public:
 	void connection_severed()
 	{
 		connection = nullptr;
+	}
+
+private:
+
+	// Port ID <0> is reserved.
+	unsigned long int id_index = 1;
+	std::stack<unsigned long int> unused_ids;
+	
+	unsigned long int borrow_id()
+	{
+		if (unused_ids.empty())
+		{
+			return id_index++;
+		}
+
+		else
+		{
+			auto ret = unused_ids.top();
+			unused_ids.pop();
+			return ret;
+		}
+	}
+
+	void yield_id(unsigned long int id)
+	{
+		unused_ids.push(id);
 	}
 };
 
@@ -104,8 +138,9 @@ public:
 
 		label.set_text(name);
 		label.set_text_scale(18);
-		label.set_size(qgl::vec(75, 75));
+		label.set_size(qgl::vec(65, 50));
 		label.fill.top = label.fill.bottom = qgl::color(1);
+		label.pos = qgl::vec(5, 5);
 	}
 
 	private:
@@ -115,7 +150,7 @@ public:
 			pane.fill.bottom = pane.fill.top * 0.8f;
 			pane.set_size(qgl::vec(75, 75));
 
-
+			pane.options[qgl::Element::MOUSE_LISTENER] = true;
 			auto drag_element = [&](qgl::Element* element_ptr)
 			{
 				qgl::follow_mouse
@@ -126,8 +161,100 @@ public:
 			};
 
 			// Label will follow since its a child
-			pane.on_drag(drag_element);
+			pane.on_press(drag_element);
 		}
+
+
+};
+
+class Scene
+{
+public:
+	std::list<Node> nodes;
+
+	int index_of(const std::string& str, char c, size_t start = 0Ui64)
+	{
+		while (str[start] != c && start < str.length()) start++;
+
+		if (start == str.length())
+			return -1;
+
+		return start;
+	}
+
+	std::string substr(const std::string& str, unsigned int start, unsigned int end_excl = 18446744073709551615Ui64)
+	{
+		if (start >= str.length())
+			return "";
+
+		return str.substr(start, end_excl - start - 1);
+	}
+
+	void load(std::string file_path)
+	{
+		// validate extension
+		if (file_path.substr(file_path.length() - 4).compare(".cms") != 0)
+		{
+			return;
+		}
+
+		std::ifstream file;
+		file.open(file_path);
+
+		std::string line = "";
+		file >> line;
+		
+		int line_number = 0;
+
+		if (line[0] == '[')
+		{
+			int end_delim = index_of(line, ']', 1);
+			if (end_delim == -1)
+			{
+				std::cout << "No end delimiter found for \'[\' character at line " << line_number << '\n';
+			}
+
+			if (substr(line, 1, end_delim).compare("Node"))
+			{
+				nodes.push_back(Node());
+				parse_node(file, nodes.back());
+			}
+		}
+	}
+
+	void parse_node(std::ifstream& file, Node& node)
+	{
+		std::string line = "";
+
+		while (line[0] != '}')
+		{
+			file >> line;
+			parse_node_member(file, node);
+		}
+	}
+
+	void parse_node_member(std::ifstream& file, Node& node)
+	{
+		const std::string NAME = "name";
+		const std::string DIM = "dim";
+
+		std::string line = "";
+
+		if (line[0] == '[')
+		{
+			int end_delim = index_of(line, ']', 1);
+			if (end_delim == -1)
+			{
+				std::cout << "No end delimiter found for \'[\' character at line " << line_number << '\n';
+			}
+
+			if (substr(line, 1, end_delim).compare("Node"))
+			{
+				nodes.push_back(parse_node(file));
+			}
+		}
+		
+	}
 };
 
 int main()
@@ -155,6 +282,9 @@ int main()
 
 	glm::vec2 pre_magnet = clamp_pos(magnet, in, k);
 	glm::vec2 post_magnet = clamp_pos(magnet, out, k);
+
+	Scene s;
+	s.load("first_scene.cms");
 
 	/*qgl::Curve& curve = qgl::new_Element<qgl::Curve>();
 	curve.fill.top = glm::vec4(1);

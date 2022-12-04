@@ -283,8 +283,6 @@ namespace qgl
             ep->draw();
         }
 
-        draw::shape_color(color(1));
-
 
         draw::end_frame();
     }
