@@ -172,88 +172,112 @@ class Scene
 public:
 	std::list<Node> nodes;
 
-	int index_of(const std::string& str, char c, size_t start = 0Ui64)
+	int count(const std::string& str, char c)
 	{
-		while (str[start] != c && start < str.length()) start++;
+		int ct = 0;
+		for (auto& str_char : str)
+		{
+			if (c == str_char)
+			{
+				ct++;
+			}
+		}
 
-		if (start == str.length())
-			return -1;
-
-		return start;
+		return ct;
 	}
 
-	std::string substr(const std::string& str, unsigned int start, unsigned int end_excl = 18446744073709551615Ui64)
+	std::string read_block(std::ifstream& file, char open_delim, char close_delim)
 	{
-		if (start >= str.length())
-			return "";
+		std::string sum = "";
+		std::string line = "";
 
-		return str.substr(start, end_excl - start - 1);
+		int num_open = 0;
+		int num_close = 0;
+
+		while (num_open > num_close)
+		{
+			file >> line;
+			sum += line;
+			// TODO check if line contains '\n'
+			num_open += count(line, open_delim);
+			num_close += count(line, close_delim);
+		}
+
+		int first_open_delim = sum.find(open_delim);
+		return sum.substr(first_open_delim + 1, sum.find_last_of(close_delim)-first_open_delim - 2);
+	}
+
+	
+	std::string read_block(const std::string& str, char open_delim, char close_delim)
+	{
+		std::string sum = "";
+		std::string line = str.substr(0,str.find('\n'));
+		int cursor = 0;
+
+		int num_open = 0;
+		int num_close = 0;
+
+		while (num_open > num_close)
+		{
+			sum += line;
+			num_open += count(line, open_delim);
+			num_close += count(line, close_delim);
+
+			cursor = str.find('\n', cursor) + 1;
+			line = str.substr(cursor, str.find('\n', cursor) - cursor);
+		}
+
+		int first_open_delim = sum.find(open_delim);
+		return sum.substr(first_open_delim + 1, sum.find_last_of(close_delim) - first_open_delim - 2);
 	}
 
 	void load(std::string file_path)
 	{
 		// validate extension
-		if (file_path.substr(file_path.length() - 4).compare(".cms") != 0)
+		std::string file_extension = file_path.substr(file_path.length() - 4);
+		if (file_extension.compare(".cms") != 0)
 		{
+			std::cout << "Invalid file extension for \"" + file_path + "\"\n";
 			return;
 		}
 
 		std::ifstream file;
 		file.open(file_path);
 
-		std::string line = "";
-		file >> line;
-		
-		int line_number = 0;
-
-		if (line[0] == '[')
+		std::string header = read_block(file, '[', ']');
+		if (header.substr(1, header.length() - 2).compare("Node") == 0)
 		{
-			int end_delim = index_of(line, ']', 1);
-			if (end_delim == -1)
-			{
-				std::cout << "No end delimiter found for \'[\' character at line " << line_number << '\n';
-			}
-
-			if (substr(line, 1, end_delim).compare("Node"))
-			{
-				nodes.push_back(Node());
-				parse_node(file, nodes.back());
-			}
+			nodes.push_back(Node());
+			
+			// Get everything contained by the Node block
+			std::string blck = read_block(file, '{', '}');
+			parse_node(blck, nodes.back());
 		}
 	}
-
-	void parse_node(std::ifstream& file, Node& node)
+	
+	void parse_node(const std::string& block, Node& node)
 	{
-		std::string line = "";
+		int line_start = 0;
+		int line_end = block.find('\n');
 
-		while (line[0] != '}')
+		while (line_end != -1)
 		{
-			file >> line;
-			parse_node_member(file, node);
+			parse_node_variable(block.substr(line_start, line_end-line_start-1), node);
+			
+			line_start = line_end + 1;
+			line_end = block.find('\n', line_start);
 		}
 	}
 
-	void parse_node_member(std::ifstream& file, Node& node)
+	void parse_node_variable(const std::string& line, Node& node)
 	{
 		const std::string NAME = "name";
-		const std::string DIM = "dim";
-
-		std::string line = "";
-
-		if (line[0] == '[')
-		{
-			int end_delim = index_of(line, ']', 1);
-			if (end_delim == -1)
-			{
-				std::cout << "No end delimiter found for \'[\' character at line " << line_number << '\n';
-			}
-
-			if (substr(line, 1, end_delim).compare("Node"))
-			{
-				nodes.push_back(parse_node(file));
-			}
-		}
 		
+		std::string key = read_block(line, '[', ']');
+		if (key.compare(NAME) == 0)
+		{
+			node.label.set_text(read_block(line, '{', '}'));
+		}
 	}
 };
 
