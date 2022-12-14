@@ -186,49 +186,126 @@ public:
 		return ct;
 	}
 
+	std::string remove_white_space(const std::string& str)
+	{
+		std::string ret = "";
+
+		bool in_quotes = false;
+		for (const char& c : str)
+		{
+			if (c == '\"')
+			{
+				in_quotes = !in_quotes;
+				continue;
+			}
+				
+			if (in_quotes) ret += c;
+
+			else if (c == '\n' || c == ' ' || c == '\t')
+			{
+				continue;
+			}
+
+			else ret += c;
+		}
+
+		return ret;
+	}
+
 	std::string read_block(std::ifstream& file, char open_delim, char close_delim)
 	{
 		std::string sum = "";
-		std::string line = "";
 
 		int num_open = 0;
+
+		char c = file.get();
+		while (!file.eof() && c != open_delim)
+		{
+			if (c == close_delim)
+			{
+				std::cout << "Invalid arguments. Found first close delim before first open delim\n";
+				return "";
+			}
+
+			c = file.get();
+		}
+
+		if (file.eof())
+		{
+			std::cout << "No open delim found";
+			return "";
+		}
+
+		num_open = 1;
+		sum += open_delim;
 		int num_close = 0;
 
 		while (num_open > num_close)
 		{
-			file >> line;
-			sum += line;
+			char c = file.get();
+			sum += c;
 			// TODO check if line contains '\n'
-			num_open += count(line, open_delim);
-			num_close += count(line, close_delim);
+
+			if (c == open_delim) num_open++;
+			else if (c == close_delim) num_close++;
 		}
 
-		int first_open_delim = sum.find(open_delim);
-		return sum.substr(first_open_delim + 1, sum.find_last_of(close_delim)-first_open_delim - 2);
+		return remove_white_space(sum.substr(1, sum.find_last_of(close_delim)-1));
 	}
-
 	
 	std::string read_block(const std::string& str, char open_delim, char close_delim)
 	{
 		std::string sum = "";
-		std::string line = str.substr(0,str.find('\n'));
 		int cursor = 0;
 
 		int num_open = 0;
-		int num_close = 0;
 
-		while (num_open > num_close)
+		while (cursor < str.length() && str[cursor] != open_delim)
 		{
-			sum += line;
-			num_open += count(line, open_delim);
-			num_close += count(line, close_delim);
-
-			cursor = str.find('\n', cursor) + 1;
-			line = str.substr(cursor, str.find('\n', cursor) - cursor);
+			if (str[cursor] == close_delim)
+			{
+				std::cout << "Invalid arguments. Found first close delim before first open delim\n";
+				return "";
+			}
+			cursor++;
 		}
 
-		int first_open_delim = sum.find(open_delim);
-		return sum.substr(first_open_delim + 1, sum.find_last_of(close_delim) - first_open_delim - 2);
+		if (cursor == str.length())
+		{
+			std::cout << "No open delim found";
+			return "";
+		}
+
+		num_open = 1;
+		sum += open_delim;
+		cursor++;
+
+		int num_close = 0;
+		while (cursor < str.length())
+		{
+			char c = str[cursor];
+			sum += c;
+
+			if (c == open_delim) num_open++;
+			else if (c == close_delim)
+			{
+				num_close++;
+				if (num_close == num_open)
+				{
+					break;
+				}
+			}
+
+			cursor++;
+		}
+
+		if (cursor == str.length())
+		{
+			std::cout << "Invalid arguments. Not enough close delims found\n";
+			return "";
+		}
+
+		return remove_white_space(sum.substr(1, cursor-1));
 	}
 
 	void load(std::string file_path)
@@ -245,7 +322,7 @@ public:
 		file.open(file_path);
 
 		std::string header = read_block(file, '[', ']');
-		if (header.substr(1, header.length() - 2).compare("Node") == 0)
+		if (header.compare("Node") == 0)
 		{
 			nodes.push_back(Node());
 			
@@ -255,28 +332,85 @@ public:
 		}
 	}
 	
+	size_t find_at_scope(const std::string& str, char c, int offset = 0)
+	{
+		int num_open = 0;
+		int num_close = 0;
+		for (size_t k = offset; k < str.length(); k++)
+		{
+			if (str[k] == '{') num_open++;
+			if (str[k] == '}') num_close++;
+
+			if (num_open == num_close)
+			{
+				if (str[k] == c)
+					return k;
+			}
+		}
+
+		return std::string::npos;
+	}
+
 	void parse_node(const std::string& block, Node& node)
 	{
-		int line_start = 0;
-		int line_end = block.find('\n');
+		size_t line_start = 0;
+		size_t next_comma = find_at_scope(block, ',', line_start);
 
-		while (line_end != -1)
+		while (next_comma != std::string::npos)
 		{
-			parse_node_variable(block.substr(line_start, line_end-line_start-1), node);
+			std::string var_block = block.substr(line_start, next_comma - line_start);
+			parse_node_variable(var_block, node);
 			
-			line_start = line_end + 1;
-			line_end = block.find('\n', line_start);
+			line_start = next_comma + 1;
+			next_comma = find_at_scope(block, ',', line_start);
 		}
+
+		parse_node_variable(block.substr(line_start), node);
+
+		// add code to get last node variable.
 	}
+
+	/*
+		Expects a string in the form of "3.932,390,0.11". No white space, no unnecessary commas. Only digits, dots, and commas.
+	*/
+	void read_float_array(const std::string& block, float* arr, int array_length)
+	{
+		int cursor = 0;
+		int array_index = 0;
+		size_t comma_pos = block.find(',');
+
+		while (comma_pos != std::string::npos && array_index < array_length && cursor < block.length())
+		{
+			arr[array_index] = std::stof(block.substr(cursor, comma_pos - cursor));
+			cursor = comma_pos + 1;
+			comma_pos = block.find(',', cursor);
+			array_index++;
+		}
+
+		if (array_index < array_length)
+		{
+			arr[array_index] = std::stof(block.substr(cursor));
+		}
+
+		if (array_index < array_length) std::cout << array_index + 1 << " out of " << array_length << " float found.\n";
+	} 
 
 	void parse_node_variable(const std::string& line, Node& node)
 	{
 		const std::string NAME = "name";
+		const std::string SIZE = "size";
 		
 		std::string key = read_block(line, '[', ']');
 		if (key.compare(NAME) == 0)
 		{
 			node.label.set_text(read_block(line, '{', '}'));
+		}
+		else if (key.compare(SIZE) == 0)
+		{
+			float dimensions[2];
+			std::string value_block = read_block(line, '{', '}');
+			read_float_array(value_block, dimensions, 2);
+			node.pane.set_size(qgl::vec(dimensions[0], dimensions[1]));
 		}
 	}
 };
@@ -291,7 +425,7 @@ int main()
 	// Then we can specify for each draw how many of those vertices were actually going to use
 
 
-	Node node("Hello");
+	//Node node("Hello");
 
 	glm::vec2 in(20, 20);
 	glm::vec2 magnet(200, 400);
