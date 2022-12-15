@@ -255,9 +255,7 @@ public:
 	
 	std::string read_block(const std::string& str, char open_delim, char close_delim)
 	{
-		std::string sum = "";
 		int cursor = 0;
-
 		int num_open = 0;
 
 		while (cursor < str.length() && str[cursor] != open_delim)
@@ -277,14 +275,13 @@ public:
 		}
 
 		num_open = 1;
-		sum += open_delim;
+		size_t first_delim_index = cursor;
 		cursor++;
 
 		int num_close = 0;
 		while (cursor < str.length())
 		{
 			char c = str[cursor];
-			sum += c;
 
 			if (c == open_delim) num_open++;
 			else if (c == close_delim)
@@ -305,7 +302,7 @@ public:
 			return "";
 		}
 
-		return remove_white_space(sum.substr(1, cursor-1));
+		return remove_white_space(str.substr(first_delim_index+1, cursor-1));
 	}
 
 	void load(std::string file_path)
