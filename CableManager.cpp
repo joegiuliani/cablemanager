@@ -240,7 +240,7 @@ public:
 		sum += open_delim;
 		int num_close = 0;
 
-		while (num_open > num_close)
+		while (!file.eof() && num_open > num_close)
 		{
 			char c = file.get();
 			sum += c;
@@ -248,6 +248,12 @@ public:
 
 			if (c == open_delim) num_open++;
 			else if (c == close_delim) num_close++;
+		}
+
+		if (num_open > num_close)
+		{
+			std::cout << "NOt enough close delims found in file\n";
+			return "";
 		}
 
 		return remove_white_space(sum.substr(1, sum.find_last_of(close_delim)-1));
@@ -400,7 +406,8 @@ public:
 		std::string key = read_block(line, '[', ']');
 		if (key.compare(NAME) == 0)
 		{
-			node.label.set_text(read_block(line, '{', '}'));
+			std::string value_block = read_block(line, '{', '}');
+			node.label.set_text(value_block);
 		}
 		else if (key.compare(SIZE) == 0)
 		{
