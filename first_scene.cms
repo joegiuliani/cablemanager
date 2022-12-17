@@ -1,5 +1,0 @@
-[Node]
-{
-	[name] {node_name},
-	[size] {100, 100}
-}
