@@ -1,15 +1,5 @@
 [Node]
 {
 	[name] {node_name},
-	[pos] {25, 25},
-	[dim] {100, 100},
-	[outputs] 
-	{
-		[Port]
-		{
-			[name] {port_name},
-			[id] {1},
-			[connection] {0}
-		}
-	}
+	[size] {100, 100}
 }
