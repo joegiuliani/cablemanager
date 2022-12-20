@@ -132,16 +132,6 @@ public:
 	{
 		init();
 	}
-	Node(std::string name) :Node()
-	{
-		init();
-
-		label.set_text(name);
-		label.set_text_scale(18);
-		label.set_size(qgl::vec(65, 50));
-		label.fill.top = label.fill.bottom = qgl::color(1);
-		label.pos = qgl::vec(5, 5);
-	}
 
 	private:
 		void init()
@@ -149,6 +139,16 @@ public:
 			pane.fill.top = qgl::color(0.3, 0.09, .15, 1);
 			pane.fill.bottom = pane.fill.top * 0.8f;
 			pane.set_size(qgl::vec(75, 75));
+			pane.options[qgl::Element::WORLD] = true;
+			pane.outline_thickness = 1.5;
+			pane.outline.top = qgl::color(1);
+
+
+			label.set_text_scale(18);
+			label.set_size(qgl::vec(100, 100));
+			label.fill.top = label.fill.bottom = qgl::color(1);
+			label.pos = qgl::vec(10, 10);
+			label.options[qgl::Element::WORLD] = true;
 
 			pane.options[qgl::Element::MOUSE_LISTENER] = true;
 			auto drag_element = [&](qgl::Element* element_ptr)
@@ -308,7 +308,10 @@ public:
 			return "";
 		}
 
-		return remove_white_space(str.substr(first_delim_index+1, cursor-1));
+		std::string contents = str.substr(first_delim_index + 1, cursor - first_delim_index - 1);
+		std::string contents_no_white_space = remove_white_space(contents);
+
+		return contents_no_white_space;
 	}
 
 	void load(std::string file_path)
@@ -368,7 +371,7 @@ public:
 			next_comma = find_at_scope(block, ',', line_start);
 		}
 
-		parse_node_variable(block.substr(line_start), node);
+		parse_node_variable(block.substr(line_start, next_comma), node);
 
 		// add code to get last node variable.
 	}
@@ -448,7 +451,8 @@ int main()
 	Scene s;
 	s.load("first_scene.cms");
 
-	/*qgl::Curve& curve = qgl::new_Element<qgl::Curve>();
+
+		/*qgl::Curve& curve = qgl::new_Element<qgl::Curve>();
 	curve.fill.top = glm::vec4(1);
 	curve.fill.bottom = curve.fill.top;
 
@@ -475,7 +479,7 @@ int main()
 		qgl::follow_mouse(element_ptr, [&]() {return draw::is_mouse_released(); });
 	};*/
 
-    qgl::set_corner_size(5);
+    qgl::set_corner_size(8);
 
 	// I'd rather have something like elem.on_click(lamda)
 	std::cout << sizeof(qgl::Element);

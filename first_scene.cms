@@ -1,0 +1,5 @@
+[Node]
+{
+    [name] {node_name},
+    [size] {200,200}
+}
