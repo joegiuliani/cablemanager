@@ -14,7 +14,6 @@ namespace qgl
 {
     float corner_size = 0;
     //Element god_element;
-    glm::vec2 view_pos;
     float view_scale = 1;
     TowMouse tow_mouse;
 
@@ -25,12 +24,12 @@ namespace qgl
 
     vec screen_to_world(const vec& v)
     {
-        return (v - draw::viewport_size() * 0.5f) / view_scale + view_pos;
+        return (v - draw::viewport_size() * 0.5f) / view_scale + god_element.pos;
     }
 
     vec world_to_screen(const vec& v)
     {
-        return view_scale * (v - view_pos) + draw::viewport_size() * 0.5f;
+        return view_scale * (v - god_element.pos) + draw::viewport_size() * 0.5f;
     }
 
     vec get_screen_pos(Element* element_ptr)
@@ -43,25 +42,21 @@ namespace qgl
         }
 #endif
 
-        vec ret = element_ptr->options[Element::WORLD] ? world_to_screen(element_ptr->pos) : element_ptr->pos;
+        vec ret = element_ptr->options[Element::WORLD] ? element_ptr->pos * view_scale : element_ptr->pos;
 
         // Offsets element by parents' positions
         // Child positions are always relative.
+        // Has parent should always be true unless element_ptr points to the god element
         if (has_parent(*element_ptr))
         {
             Element* parent_ptr = element_ptr->parent;
 
-            while (has_parent(*parent_ptr))
+            while (parent_ptr != nullptr)
             {
-                if (parent_ptr->options[Element::WORLD])
-                    ret += world_to_screen(parent_ptr->pos);
-                else
-                    ret += parent_ptr->pos;
-
+                ret += parent_ptr->options[Element::WORLD] ? view_scale * parent_ptr->pos : parent_ptr->pos;
                 parent_ptr = parent_ptr->parent;
             }
         }
-
 
         return ret;
     }
@@ -270,7 +265,7 @@ namespace qgl
 
         if (draw::is_mouse_down(draw::MOUSE_MIDDLE) && draw::is_mouse_moving())
         {
-            view_pos -= draw::get_mouse_delta() / view_scale;
+            god_element.pos += draw::get_mouse_delta();
         }
 
         // Processes mouse events for all mouse listeners.
