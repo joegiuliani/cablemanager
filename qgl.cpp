@@ -12,7 +12,6 @@
 
 namespace qgl
 {
-    float corner_size = 0;
     //Element god_element;
     float view_scale = 1;
     TowMouse tow_mouse;
@@ -59,12 +58,6 @@ namespace qgl
         }
 
         return ret;
-    }
-
-    void set_corner_size(float s)
-    {
-        corner_size = s;
-        draw::shape_corner(s);
     }
 
     bool contains(const vec& value, const vec& min, const vec& max)
@@ -122,10 +115,16 @@ namespace qgl
             return;
         }
 
+        for (auto& child : child_storage)
+        {
+            child->remove();
+        }
+
         auto& store = parent->child_storage;
         auto it = std::find_if(store.begin(), store.end(), [&](ElementPtr& ep) {return ep.get() == this; });
         if (it != store.end()) // should always be true
         {
+            std::cout << "erased called";
             store.erase(it);
         }
         else
@@ -278,7 +277,6 @@ namespace qgl
             ep->draw();
         }
 
-
         draw::end_frame();
     }
 
@@ -411,7 +409,7 @@ namespace qgl
         float scale = options[WORLD] ? view_scale : 1.0f;
 
         // All the shader access should be setters.
-        draw::shape_corner(scale * corner_size);
+        draw::shape_corner(scale * corner_radius);
 
         draw::shape_color(fill.top, fill.bottom);
 
@@ -429,9 +427,9 @@ namespace qgl
             draw::draw_mask(false);
             draw::apply_mask(true);
 
-            if (corner_size > 0)
+            if (corner_radius > 0)
             {
-                draw::shape_corner(scale * (corner_size + outline_thickness));
+                draw::shape_corner(scale * (corner_radius + outline_thickness));
             }
 
             // We should set the alpha to scale

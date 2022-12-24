@@ -109,6 +109,7 @@ namespace qgl
     {
     public:
         Shape();
+        float corner_radius = 5;
         virtual void draw();
     };
     
@@ -158,7 +159,6 @@ namespace qgl
     void init();
     bool is_running();
     void on_frame();
-    void set_corner_size(float s);
     void terminate();
 }
 // everything can draw over everything, except well scissor the scene view.

@@ -58,15 +58,23 @@ public:
 	unsigned long int id;
 	Port* connection = nullptr;
 
+	qgl::Shape& pane = qgl::new_Element<qgl::Shape>();
+
 	Port()
 	{
 		id = borrow_id();
+		pane.fill.top = pane.fill.bottom = qgl::color(1);
+		pane.outline.top = pane.outline.bottom = qgl::color(0,0,0,1);
+		pane.outline_thickness = 1.5;
+		pane.corner_radius = 4;
+		pane.set_size(qgl::vec(8));
 	}
 
 	~Port()
 	{
 		sever_connection();
 		yield_id(id);
+		pane.remove();
 	}
 
 	void sever_connection()
@@ -90,29 +98,32 @@ public:
 private:
 
 	// Port ID <0> is reserved.
-	unsigned long int id_index = 1;
-	std::stack<unsigned long int> unused_ids;
+	static unsigned long int id_index;
+	static std::stack<unsigned long int> unused_ids;
 	
 	unsigned long int borrow_id()
 	{
-		if (unused_ids.empty())
+		if (Port::unused_ids.empty())
 		{
 			return id_index++;
 		}
 
 		else
 		{
-			auto ret = unused_ids.top();
-			unused_ids.pop();
+			auto ret = Port::unused_ids.top();
+			Port::unused_ids.pop();
 			return ret;
 		}
 	}
 
 	void yield_id(unsigned long int id)
 	{
-		unused_ids.push(id);
+		Port::unused_ids.push(id);
 	}
 };
+
+unsigned long int Port::id_index = 1;
+std::stack<unsigned long int> Port::unused_ids = std::stack<unsigned long int>();
 
 class Node
 {
@@ -130,41 +141,44 @@ public:
 
 	Node()
 	{
-		init();
+		pane.fill.top = qgl::color(0.3, 0.09, .15, 1);
+		pane.fill.bottom = pane.fill.top * 0.8f;
+		pane.set_size(qgl::vec(75, 75));
+		pane.options[qgl::Element::WORLD] = true;
+		pane.outline_thickness = 1.5;
+		pane.outline.top = qgl::color(1);
+		pane.corner_radius = 4;
+
+		label.set_text_scale(18);
+		label.set_size(qgl::vec(100, 100));
+		label.fill.top = label.fill.bottom = qgl::color(1);
+		label.pos = qgl::vec(10, 10);
+		label.options[qgl::Element::WORLD] = true;
+
+		pane.options[qgl::Element::MOUSE_LISTENER] = true;
+		auto drag_element = [&](qgl::Element* element_ptr)
+		{
+			qgl::follow_mouse
+			(
+				element_ptr, // this
+				[&]() {return draw::is_mouse_released(); } // condition to stop following the mouse
+			);
+		};
+
+		// Label will follow since its a child
+		pane.on_press(drag_element);
 	}
 
-	private:
-		void init()
-		{
-			pane.fill.top = qgl::color(0.3, 0.09, .15, 1);
-			pane.fill.bottom = pane.fill.top * 0.8f;
-			pane.set_size(qgl::vec(75, 75));
-			pane.options[qgl::Element::WORLD] = true;
-			pane.outline_thickness = 1.5;
-			pane.outline.top = qgl::color(1);
+	Node(const Node& n)
+	{
 
+	}
 
-			label.set_text_scale(18);
-			label.set_size(qgl::vec(100, 100));
-			label.fill.top = label.fill.bottom = qgl::color(1);
-			label.pos = qgl::vec(10, 10);
-			label.options[qgl::Element::WORLD] = true;
-
-			pane.options[qgl::Element::MOUSE_LISTENER] = true;
-			auto drag_element = [&](qgl::Element* element_ptr)
-			{
-				qgl::follow_mouse
-				(
-					element_ptr, // this
-					[&]() {return draw::is_mouse_released();} // condition to stop following the mouse
-				);
-			};
-
-			// Label will follow since its a child
-			pane.on_press(drag_element);
-		}
-
-
+	~Node()
+	{
+		pane.remove();
+		label.remove();
+	}
 };
 
 class Scene
@@ -479,7 +493,6 @@ int main()
 		qgl::follow_mouse(element_ptr, [&]() {return draw::is_mouse_released(); });
 	};*/
 
-    qgl::set_corner_size(8);
 
 	// I'd rather have something like elem.on_click(lamda)
 	std::cout << sizeof(qgl::Element);
