@@ -9,10 +9,8 @@
 
 #define QGL_DEBUG
 
-
 namespace qgl
 {
-    //Element god_element;
     float view_scale = 1;
     TowMouse tow_mouse;
 
@@ -23,12 +21,12 @@ namespace qgl
 
     vec screen_to_world(const vec& v)
     {
-        return (v - draw::viewport_size() * 0.5f) / view_scale + god_element.pos;
+        return (v - draw::viewport_size() * 0.5f) / view_scale + head_element.pos;
     }
 
     vec world_to_screen(const vec& v)
     {
-        return view_scale * (v - god_element.pos) + draw::viewport_size() * 0.5f;
+        return view_scale * (v - head_element.pos) + draw::viewport_size() * 0.5f;
     }
 
     vec get_screen_pos(Element* element_ptr)
@@ -65,15 +63,65 @@ namespace qgl
         return value.x >= min.x && value.y >= min.y && value.x <= max.x && value.y <= max.y;
     }
 
+    void Element::copy(const Element& elem)
+    {
+        for (int k = 0; k < 3; k++)
+            options[k] = elem.options[k];
+
+        pos = elem.pos;
+        fill = elem.fill;
+        outline = elem.outline;
+        shadow = elem.shadow;
+        outline_thick
+    }
+
+
+
     Element::Element()
     {
+        // Because I want people to be able to put 
+
+        // Shape shape
+        // instead of
+        // Shape& shape = head.add_child<Shape>();
+        
+
+        // So i propose that element adds a ptr of itself to god element's child storage.
+        // and when destructed, we remove the pointer from the storage.
+        // that way.
+
+        // This would only work for non-contained Elements whos parent is the head element.
+        // 
+
+
+        // THIS WHOLE THING IS IMPOSSIBLE
+
+
+        // I want elements. 
+
+    }
+
+    Element::Element(const Element& elem)
+    {
+
     }
 
     Shape::Shape()
     {
+    }
+    Shape::Shape(const Shape& sh)
+    {
+
+    }
+    Curve::Curve(const Curve& curve)
+    {
 
     }
     TextBox::TextBox()
+    {
+
+    }
+    TextBox::TextBox(const TextBox& tb)
     {
 
     }
@@ -105,32 +153,6 @@ namespace qgl
             std::cout << "Shape size can't be negative\n";
         }
         dim = glm::max(v, vec(0));
-    }
-
-    void Element::remove()
-    {
-        if (!has_parent(*this))
-        {
-            std::cout << "You tried removing the god element\n";
-            return;
-        }
-
-        for (auto& child : child_storage)
-        {
-            child->remove();
-        }
-
-        auto& store = parent->child_storage;
-        auto it = std::find_if(store.begin(), store.end(), [&](ElementPtr& ep) {return ep.get() == this; });
-        if (it != store.end()) // should always be true
-        {
-            std::cout << "erased called";
-            store.erase(it);
-        }
-        else
-        {
-            std::cout << "Unable to remove element. It does not exist in its parents child_storage.";
-        }
     }
 
     void Element::draw()
@@ -207,16 +229,20 @@ namespace qgl
         }
     }
 
-    bool process_mouse_events(Element* element_ptr)
+    void process_mouse_events(Element* element_ptr)
     {
-        Element& element = *element_ptr;
-
+        //Element& element = *element_ptr;
+        element_ptr->process_mouse_events();
+        
+    }
+    bool Element::process_mouse_events()
+    {
         // We draw one branch at a time in forward order, parent first
         // So we'll have to go the opposite direction
 
-        for (auto it = element.child_storage.rbegin(); it != element.child_storage.rend(); ++it)
+        for (auto it = child_storage.rbegin(); it != child_storage.rend(); ++it)
         {
-            if (process_mouse_events((*it).get()))
+            if ((*it)->process_mouse_events())
             {
                 // The the first, deepest element we iterate through that has mouse listening enabled is the only element that receives mouse events.
                 return true;
@@ -225,28 +251,28 @@ namespace qgl
 
         // If the element we're looking at doesn't care about the mouse, we continue looking down the branch.
         // For instance if a moveable object has a non-interactive label, we still want to move the object even if we click on the label.
-        if (!element.options[Element::MOUSE_LISTENER])
+        if (!options[Element::MOUSE_LISTENER])
             return false;
 
-        vec screen_pos = get_screen_pos(element_ptr);
-        vec screen_dim = element.size();
-        if (element.options[Element::WORLD]) screen_dim *= view_scale;
+        vec screen_pos = get_screen_pos(this);
+        vec screen_dim = dim;
+        if (options[Element::WORLD]) screen_dim *= view_scale;
         vec mouse_pos = draw::get_mouse_pos();
 
         if (contains(mouse_pos, screen_pos, screen_pos + screen_dim))
         {
-            if (element.hovered != nullptr)
-                element.hovered(element_ptr);
+            if (hovered != nullptr)
+                hovered(this);
 
-            if (element.pressed != nullptr && draw::is_mouse_pressed())
+            if (pressed != nullptr && draw::is_mouse_pressed())
             {
-                element.pressed(element_ptr);
+                pressed(this);
             }
 
             if (draw::is_mouse_down() && draw::is_mouse_moving())
             {
-                if (element.dragged != nullptr)
-                    element.dragged(element_ptr);
+                if (dragged != nullptr)
+                    dragged(this);
             }
 
             return true;
@@ -254,7 +280,6 @@ namespace qgl
 
         return false;
     }
-
     void on_frame()
     {
         draw::begin_frame();
@@ -264,18 +289,15 @@ namespace qgl
 
         if (draw::is_mouse_down(draw::MOUSE_MIDDLE) && draw::is_mouse_moving())
         {
-            god_element.pos += draw::get_mouse_delta();
+            head_element.pos += draw::get_mouse_delta();
         }
 
         // Processes mouse events for all mouse listeners.
-        process_mouse_events(&god_element);
+        process_mouse_events(&head_element);
 
         tow_mouse.update();
 
-        for (ElementPtr& ep : god_element.child_storage)
-        {
-            ep->draw();
-        }
+        head_element.draw();
 
         draw::end_frame();
     }

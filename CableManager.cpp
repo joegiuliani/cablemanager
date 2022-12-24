@@ -58,7 +58,7 @@ public:
 	unsigned long int id;
 	Port* connection = nullptr;
 
-	qgl::Shape& pane = qgl::new_Element<qgl::Shape>();
+	qgl::Shape& pane = qgl::head_element.add_child<qgl::Shape>();
 
 	Port()
 	{
@@ -74,7 +74,6 @@ public:
 	{
 		sever_connection();
 		yield_id(id);
-		pane.remove();
 	}
 
 	void sever_connection()
@@ -128,8 +127,8 @@ std::stack<unsigned long int> Port::unused_ids = std::stack<unsigned long int>()
 class Node
 {
 public:
-	qgl::Shape& pane = qgl::new_Element<qgl::Shape>();
-	qgl::TextBox& label = qgl::new_Element<qgl::TextBox>(&pane);
+	qgl::Shape& pane = qgl::head_element.add_child<qgl::Shape>();
+	qgl::TextBox& label = pane.add_child<qgl::TextBox>();
 	std::list<Port> inputs;
 	std::list<Port> outputs;
 	std::list<Port> uputs;
@@ -171,13 +170,7 @@ public:
 
 	Node(const Node& n)
 	{
-
-	}
-
-	~Node()
-	{
-		pane.remove();
-		label.remove();
+		pane = 
 	}
 };
 
@@ -465,7 +458,6 @@ int main()
 	Scene s;
 	s.load("first_scene.cms");
 
-
 		/*qgl::Curve& curve = qgl::new_Element<qgl::Curve>();
 	curve.fill.top = glm::vec4(1);
 	curve.fill.bottom = curve.fill.top;
@@ -495,7 +487,6 @@ int main()
 
 
 	// I'd rather have something like elem.on_click(lamda)
-	std::cout << sizeof(qgl::Element);
     while (qgl::is_running())
     {
         qgl::on_frame();

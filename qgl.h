@@ -20,6 +20,11 @@ namespace qgl
     struct gradient
     {
         color top, bottom;
+        gradient& operator=(const gradient& other)
+        {
+            top = other.top;
+            bottom = other.bottom;
+        }
     };
     typedef glm::vec2 vec;
 
@@ -49,12 +54,38 @@ namespace qgl
         float shadow_sharpness;
         vec shadow_offset;
 
-        std::vector<ElementPtr> child_storage;
         Element* parent = nullptr;
 
         //virtual void remove() = 0;
 
         Element();
+        Element(const Element& elem);
+
+        template<typename T>
+        T& add_child()
+        {
+            child_storage.push_back(std::make_unique<T>(T()));
+            child_storage.back()->parent = this;
+            return *((T*)(child_storage.back().get()));
+        }
+
+        template<typename T>
+        bool remove_child(const T& ch)
+        {
+            Element* ch_ptr = (Element*)&ch;
+            auto& store = child_storage;
+            auto it = std::find_if(store.begin(), store.end(), [&](ElementPtr& ep) {return ep.get() == ch_ptr; });
+            if (it != store.end())
+            {
+                store.erase(it);
+
+                return false;
+            }
+
+            return false;
+        }
+
+        virtual void copy(const Element& e);
 
         void clip_children(bool flag);
         void on_press(CallbackFn cf);
@@ -64,29 +95,33 @@ namespace qgl
         //void on_enter(CallbackFn cf);
         //void on_exit(CallbackFn cf);
 
+        bool process_mouse_events();
+
         const vec& size();
         void set_size(const vec& v);
         //void send_to_front();
-        void remove();
 
         virtual void draw();
         CallbackFn pressed = nullptr, hovered = nullptr, dragged = nullptr, released = nullptr, entered = nullptr, exited = nullptr;
 
     protected:
         vec dim;
+        std::vector<ElementPtr> child_storage;
+        Element(const Element& elem);
+        Element& operator=(const Element& elem);
     };
 
-    inline Element god_element;
-
-    //Element& new_Element();
-    //Element& new_Element(Element* parent_ptr);
+    inline qgl::Element head_element;
 
     class Curve : public Element
     {
     public:
         Curve();
+        Curve(const Curve& curve);
         std::vector<vec> points;
         virtual void draw();
+        virtual void copy(const Curve& e);
+
     };
 
     class TextBox : public Element
@@ -94,9 +129,11 @@ namespace qgl
     public:
         virtual void draw();
         TextBox();
+        TextBox(const TextBox& tb);
         void set_size(const vec& s);
         void set_text(const std::string& str);
         void set_text_scale(float s);
+        virtual void copy(const TextBox& e);
     protected:
         std::string text;
         std::vector<std::string> lines;
@@ -109,34 +146,12 @@ namespace qgl
     {
     public:
         Shape();
+        Shape(const Shape& sh);
         float corner_radius = 5;
         virtual void draw();
+        virtual void copy(const Shape& e);
+
     };
-    
-    template<typename T>
-    T& new_Element(Element* parent_ptr)
-    {
-        parent_ptr->child_storage.push_back(std::make_unique<T>());
-
-        T* new_ptr = (T*)(parent_ptr->child_storage.back().get());
-        new_ptr->parent = parent_ptr;
-        return *new_ptr;
-    }
-    template<typename T>
-    T& new_Element()
-    {
-        return new_Element<T>(&god_element);
-    }
-
-    /*
-    Shape& new_Shape(Element* parent_ptr);
-    Shape& new_Shape();
-
-    Curve& new_Curve();
-    Curve& new_Curve(Element* parent);
-
-    TextBox& new_TextBox();
-    TextBox& new_TextBox(Element* parent);*/
 
     class TowMouse
     {
