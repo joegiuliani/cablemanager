@@ -10,6 +10,7 @@
 // And Ishould utilize multiple inheritance otherwise were wasting space.
 
 
+#define QGL_DEBUG
 
 namespace qgl
 {
@@ -36,6 +37,8 @@ namespace qgl
     typedef std::function<void(Element*)> CallbackFn;
     constexpr void* NO_FUNCTION = nullptr;
 
+    inline float view_scale = 1;
+
     class Element
     {
     public:
@@ -43,8 +46,6 @@ namespace qgl
         static const FlagIndex OCCLUDE_CHILDREN = 1;
         static const FlagIndex MOUSE_LISTENER = 2;
         Flag options[3] = { false };
-
-        vec pos;
 
         gradient fill{ color(1), color(1) };
         gradient outline;
@@ -56,9 +57,10 @@ namespace qgl
 
         Element* parent = nullptr;
 
+        CallbackFn pressed = nullptr, hovered = nullptr, dragged = nullptr, released = nullptr, entered = nullptr, exited = nullptr;
+
         //virtual void remove() = 0;
 
-        Element();
         Element(const Element& elem);
 
         template<typename T>
@@ -85,33 +87,36 @@ namespace qgl
             return false;
         }
 
-        virtual void copy(const Element& e);
-
         void clip_children(bool flag);
-        void on_press(CallbackFn cf);
-        void on_drag(CallbackFn cf);
+
+        //void on_press(CallbackFn cf);
+        //void on_drag(CallbackFn cf);
         //void on_hover(CallbackFn cf);
         //void on_release(CallbackFn cf);
         //void on_enter(CallbackFn cf);
-        //void on_exit(CallbackFn cf);
+        //void on_exit(CallbackFn cf)
+        //bool process_mouse_events();
 
-        bool process_mouse_events();
-
-        const vec& size();
+        // All deal with pixel space
+        vec pos();
+        vec size();
         void set_size(const vec& v);
+        void set_pos(const vec& v);
         //void send_to_front();
 
         virtual void draw();
-        CallbackFn pressed = nullptr, hovered = nullptr, dragged = nullptr, released = nullptr, entered = nullptr, exited = nullptr;
 
     protected:
-        vec dim;
+        vec m_size;
         std::vector<ElementPtr> child_storage;
-        Element(const Element& elem);
         Element& operator=(const Element& elem);
+        vec m_pos;
+
+    protected:
+        Element();
     };
 
-    inline qgl::Element head_element;
+    extern qgl::Element& head_element;
 
     class Curve : public Element
     {
@@ -120,7 +125,6 @@ namespace qgl
         Curve(const Curve& curve);
         std::vector<vec> points;
         virtual void draw();
-        virtual void copy(const Curve& e);
 
     };
 
@@ -133,12 +137,11 @@ namespace qgl
         void set_size(const vec& s);
         void set_text(const std::string& str);
         void set_text_scale(float s);
-        virtual void copy(const TextBox& e);
+        std::string get_text();
     protected:
         std::string text;
         std::vector<std::string> lines;
         float text_scale = 1;
-
         void calculate_wrap();
     };
 
@@ -149,32 +152,39 @@ namespace qgl
         Shape(const Shape& sh);
         float corner_radius = 5;
         virtual void draw();
-        virtual void copy(const Shape& e);
 
     };
+    
+    //class TowMouse
+    //{
+    //public:
+    //    void begin(Element* t_element, std::function<bool()> t_end_condition_fn);
 
-    class TowMouse
-    {
-    public:
-        void begin(Element* t_element, std::function<bool()> t_end_condition_fn);
+    //    void reset();
 
-        void reset();
+    //    void update();
 
-        void update();
+    //private:
+    //    bool active = false;
+    //    Element* element_ptr = nullptr;
+    //    vec delta = vec(0);
+    //    std::function<bool()> end_condition_fn = nullptr;
+    //};
 
-    private:
-        bool active = false;
-        Element* element_ptr = nullptr;
-        vec delta = vec(0);
-        std::function<bool()> end_condition_fn = nullptr;
-    };
+   // void follow_mouse(Element* element, std::function<bool()> stop_condition_fn = nullptr);
 
-    void follow_mouse(Element* element, std::function<bool()> stop_condition_fn = nullptr);
+    vec screen_to_world_scale(const vec& v);
+    vec world_to_screen_scale(const vec& v);
+    vec screen_to_world_projection(const vec& v);
+    vec world_to_screen_projection(const vec& v);
 
     void init();
     bool is_running();
     void on_frame();
     void terminate();
+    void set_world_center(const vec& m_pos);
+    vec world_center();
+
 }
 // everything can draw over everything, except well scissor the scene view.
 

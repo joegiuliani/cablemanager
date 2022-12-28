@@ -9,6 +9,7 @@
 #include <stack>
 #include <map>
 #include <ft2build.h>
+#include <set>
 #include FT_FREETYPE_H
 
 template <typename T>
@@ -26,7 +27,7 @@ struct state_tracker
 
 struct Glyph {
     unsigned int texture_id; // ID handle of the glyph texture
-    glm::vec2   dim;      // Size of glyph
+    glm::vec2   m_size;      // Size of glyph
     glm::vec2   bearing;   // Offset from baseline to left/top of glyph
     float advance;   // Horizontal offset to advance to next glyph
 };
@@ -37,6 +38,7 @@ GLuint glyph_vao, glyph_vbo;
 void window_size_callback(GLFWwindow* window, int width, int height);
 void glfw_error_callback(int error, const char* description);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 glm::vec2 quadratic_bezier(float t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c);
 float get_text_width(const std::string& text);
 float get_text_height();
@@ -54,6 +56,8 @@ state_tracker<int> mouse_scroll;
 unsigned int scroll_receive_frame = 0;
 
 unsigned int frame_counter;
+
+std::set<int> down_keys;
 
 Shader shape_shader("shape", "shape.vert", "rect.frag");
 GLuint shape_vao, shape_vbo, shape_ebo;
@@ -120,6 +124,7 @@ namespace draw
         //glfwSwapInterval(1); // Enable vsync
         glfwSetWindowSizeCallback(window, window_size_callback);
         glfwSetScrollCallback(window, scroll_callback);
+        glfwSetKeyCallback(window, key_callback);
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
         {
             std::cout << "Warning: Failed to load GL from GLAD." << "\n";
@@ -203,7 +208,7 @@ namespace draw
                 float max_height = 0;
                 for (const auto& g : glyphs)
                 {
-                    if (g.dim.y > max_height)
+                    if (g.m_size.y > max_height)
                     {
                         max_height = g.bearing.y;
                     }
@@ -306,6 +311,8 @@ namespace draw
             mouse_scroll.new_state(0);
         }
 
+
+
         apply_mask(false);
         draw_mask(false);
         shape_color(glm::vec4(1));
@@ -327,7 +334,7 @@ namespace draw
         glfwTerminate();
     }
 
-    // shape shader is going to change. it will no longer accept pos and dim. These will be prepared in the vertex buffer.
+    // shape shader is going to change. it will no longer accept m_pos and dim. These will be prepared in the vertex buffer.
     // lines will be drawn using the shape shader.
 
     // we may want to set up an indirect draw function
@@ -336,16 +343,16 @@ namespace draw
     // once we draw a lot of curves, this is going to become very inefficient
     // well need to reserve buffer space and update it each frame
 
-    void draw_rect(const glm::vec2& pos, const glm::vec2& size)
+    void draw_rect(const glm::vec2& m_pos, const glm::vec2& size)
     {
         // Until we can figure out a better system for drawing corners well just use uniforms.
-        shape_shader.setVec2("pos", pos);
+        shape_shader.setVec2("pos", m_pos);
         shape_shader.setVec2("dim", size);
 
-        shape_verts[0] = pos;
-        shape_verts[1] = glm::vec2(pos.x + size.x, pos.y);
-        shape_verts[2] = pos + size;
-        shape_verts[3] = glm::vec2(pos.x, pos.y + size.y);
+        shape_verts[0] = m_pos;
+        shape_verts[1] = glm::vec2(m_pos.x + size.x, m_pos.y);
+        shape_verts[2] = m_pos + size;
+        shape_verts[3] = glm::vec2(m_pos.x, m_pos.y + size.y);
         update_shape_verts();
 
         draw_shape();
@@ -356,7 +363,7 @@ namespace draw
         text_scale = s;
     }
 
-    void draw_text(const glm::vec2& pos, const std::string& text)
+    void draw_text(const glm::vec2& m_pos, const std::string& text)
     {
         use_texture(true);
         shape_shader.setBool("disable_corners", true);
@@ -372,11 +379,11 @@ namespace draw
             set_draw_texture(ch.texture_id);
 
             float offset = (H.bearing.y - ch.bearing.y) * text_scale;
-            draw_rect(glm::vec2(pos.x + ch.bearing.x * text_scale + curs, pos.y + offset), glm::vec2(ch.dim.x, ch.dim.y) * text_scale);
+            draw_rect(glm::vec2(m_pos.x + ch.bearing.x * text_scale + curs, m_pos.y + offset), glm::vec2(ch.m_size.x, ch.m_size.y) * text_scale);
 
             curs += ch.advance * text_scale;
         }
-
+        
         shape_shader.setBool("disable_corners", false);
         use_texture(false);
         set_draw_texture(0);
@@ -460,10 +467,10 @@ namespace draw
         shape_shader.setBool("use_texture", flag);
     }
 
-    void scissor(const glm::vec2& pos, const glm::vec2& dim)
+    void scissor(const glm::vec2& m_pos, const glm::vec2& m_size)
     {
         glEnable(GL_SCISSOR_TEST);
-        glScissor(pos.x, viewport_dim.y - pos.y - dim.y, dim.x, dim.y);
+        glScissor(m_pos.x, viewport_dim.y - m_pos.y - m_size.y, m_size.x, m_size.y);
     }
 
     void stop_scissor() { glDisable(GL_SCISSOR_TEST); }
@@ -564,6 +571,11 @@ namespace draw
     }
 }
 
+std::set<int> get_down_keys()
+{
+    return down_keys;
+}
+
 glm::vec2 normal(const glm::vec2& v)
 {
     return glm::vec2(v.y, -v.x) / glm::length(v);
@@ -619,4 +631,16 @@ float get_text_height()
 {
     // TODO Implement wrapping.
     return text_scale * font_height;
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (action == GLFW_PRESS)
+    {
+        down_keys.insert(key);
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        down_keys.erase(key);
+    }
 }

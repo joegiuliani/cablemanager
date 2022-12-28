@@ -7,55 +7,52 @@
 #include <glfw/glfw3.h>
 #include "qgl.h"
 
-#define QGL_DEBUG
 
 namespace qgl
 {
-    float view_scale = 1;
-    TowMouse tow_mouse;
+    class GodElement : public Element
+    {
+    public:
+        GodElement()
+        {
+
+        }
+    };
+
+    GodElement GOD_ELEMENT;
+
+    Element& head_element = GOD_ELEMENT.add_child<Element>();
+
+    vec world_center()
+    {
+        return head_element.pos();
+    }
+
+    //TowMouse tow_mouse;
 
     bool has_parent(const Element& element)
     {
         return element.parent != nullptr;
     }
 
-    vec screen_to_world(const vec& v)
+    vec screen_to_world_scale(const vec& v)
     {
-        return (v - draw::viewport_size() * 0.5f) / view_scale + head_element.pos;
+        return v / view_scale;
     }
 
-    vec world_to_screen(const vec& v)
+    vec world_to_screen_scale(const vec& v)
     {
-        return view_scale * (v - head_element.pos) + draw::viewport_size() * 0.5f;
+        return view_scale * v;
     }
 
-    vec get_screen_pos(Element* element_ptr)
+    vec screen_to_world_projection(const vec& v)
     {
-#ifdef QGL_DEBUG
-        if (element_ptr == nullptr)
-        {
-            std::cout << "get_screen_pos() was passed nullptr\n";
-            return vec(0);
-        }
-#endif
+        return screen_to_world_scale(v - draw::viewport_size() * 0.5f) + head_element.pos();
+    }
 
-        vec ret = element_ptr->options[Element::WORLD] ? element_ptr->pos * view_scale : element_ptr->pos;
-
-        // Offsets element by parents' positions
-        // Child positions are always relative.
-        // Has parent should always be true unless element_ptr points to the god element
-        if (has_parent(*element_ptr))
-        {
-            Element* parent_ptr = element_ptr->parent;
-
-            while (parent_ptr != nullptr)
-            {
-                ret += parent_ptr->options[Element::WORLD] ? view_scale * parent_ptr->pos : parent_ptr->pos;
-                parent_ptr = parent_ptr->parent;
-            }
-        }
-
-        return ret;
+    vec world_to_screen_projection(const vec& v)
+    {
+        return world_to_screen_scale(v-head_element.pos()) + draw::viewport_size() * 0.5f;
     }
 
     bool contains(const vec& value, const vec& min, const vec& max)
@@ -63,41 +60,8 @@ namespace qgl
         return value.x >= min.x && value.y >= min.y && value.x <= max.x && value.y <= max.y;
     }
 
-    void Element::copy(const Element& elem)
-    {
-        for (int k = 0; k < 3; k++)
-            options[k] = elem.options[k];
-
-        pos = elem.pos;
-        fill = elem.fill;
-        outline = elem.outline;
-        shadow = elem.shadow;
-        outline_thick
-    }
-
-
-
     Element::Element()
     {
-        // Because I want people to be able to put 
-
-        // Shape shape
-        // instead of
-        // Shape& shape = head.add_child<Shape>();
-        
-
-        // So i propose that element adds a ptr of itself to god element's child storage.
-        // and when destructed, we remove the pointer from the storage.
-        // that way.
-
-        // This would only work for non-contained Elements whos parent is the head element.
-        // 
-
-
-        // THIS WHOLE THING IS IMPOSSIBLE
-
-
-        // I want elements. 
 
     }
 
@@ -131,19 +95,19 @@ namespace qgl
         options[OCCLUDE_CHILDREN] = flag;
     }
 
-    void Element::on_press(CallbackFn cf)
-    {
-        pressed = cf;
-    }
+    //void Element::on_press(CallbackFn cf)
+    //{
+    //    pressed = cf;
+    //}
 
-    void Element::on_drag(CallbackFn cf)
-    {
-        dragged = cf;
-    }
+    //void Element::on_drag(CallbackFn cf)
+    //{
+    //    dragged = cf;
+    //}
 
-    const vec& Element::size()
+    vec Element::size()
     {
-        return dim;
+        return options[WORLD] ? world_to_screen_scale(m_size) : m_size;
     }
 
     void Element::set_size(const vec& v)
@@ -151,19 +115,46 @@ namespace qgl
         if (v.x < 0 || v.y < 0)
         {
             std::cout << "Shape size can't be negative\n";
+            return;
         }
-        dim = glm::max(v, vec(0));
+
+        m_size = options[WORLD] ? screen_to_world_scale(v) : v;
+    }
+
+    vec Element::pos()
+    {
+        vec ret = options[Element::WORLD] ? world_to_screen_scale(m_pos) : m_pos;
+
+        // Offsets element by parents' positions
+        // Child positions are always relative.
+        // Has parent should always be true unless element_ptr points to the god element
+        if (has_parent(*this))
+        {
+            Element* parent_ptr = parent;
+
+            while (parent_ptr != nullptr)
+            {
+                ret += parent_ptr->options[Element::WORLD] ? world_to_screen_scale(parent_ptr->m_pos) : parent_ptr->m_pos;
+                parent_ptr = parent_ptr->parent;
+            }
+        }
+
+        return ret;
+    }
+
+    void Element::set_pos(const vec& v)
+    {
+        m_pos = options[WORLD] ? screen_to_world_projection(v) : v;
     }
 
     void Element::draw()
     {
         if (child_storage.size())
         {
-            vec screen_pos = get_screen_pos(this);
 
             if (options[OCCLUDE_CHILDREN])
             {
-                draw::scissor(screen_pos, dim * view_scale);
+                draw::scissor(pos(), size());
             }
 
             for (ElementPtr& cep : child_storage)
@@ -180,11 +171,13 @@ namespace qgl
         draw::init(640, 480);
     }
 
+    /*
     void follow_mouse(Element* element, std::function<bool()> stop_condition_fn)
     {
         tow_mouse.begin(element, stop_condition_fn);
     }
 
+   
     void TowMouse::begin(Element* element, std::function<bool()> t_end_condition_fn)
     {
         active = true;
@@ -192,9 +185,9 @@ namespace qgl
         end_condition_fn = t_end_condition_fn;
 
         if (element_ptr->options[Element::WORLD])
-            delta = element->pos - screen_to_world(draw::get_mouse_pos());
+            delta = element->m_pos - screen_to_world_projection(draw::get_mouse_pos());
         else
-            delta = element->pos - draw::get_mouse_pos();
+            delta = element->m_pos - draw::get_mouse_pos();
     }
 
     void TowMouse::reset()
@@ -222,14 +215,14 @@ namespace qgl
             else
             {
                 if (element_ptr->options[Element::WORLD])
-                    element_ptr->pos = screen_to_world(draw::get_mouse_pos()) + delta;
+                    element_ptr->m_pos = screen_to_world_projection(draw::get_mouse_pos()) + delta;
                 else
-                    element_ptr->pos = draw::get_mouse_pos() + delta;
+                    element_ptr->m_pos = draw::get_mouse_pos() + delta;
             }
         }
-    }
+    } */
 
-    void process_mouse_events(Element* element_ptr)
+    /*void process_mouse_events(Element* element_ptr)
     {
         //Element& element = *element_ptr;
         element_ptr->process_mouse_events();
@@ -255,7 +248,7 @@ namespace qgl
             return false;
 
         vec screen_pos = get_screen_pos(this);
-        vec screen_dim = dim;
+        vec screen_dim = m_size;
         if (options[Element::WORLD]) screen_dim *= view_scale;
         vec mouse_pos = draw::get_mouse_pos();
 
@@ -279,27 +272,33 @@ namespace qgl
         }
 
         return false;
-    }
+    }*/
     void on_frame()
     {
         draw::begin_frame();
 
+        /*
         const float zoom_fac = 0.1f;
         view_scale *= 1 + zoom_fac * draw::get_mouse_scroll();
 
         if (draw::is_mouse_down(draw::MOUSE_MIDDLE) && draw::is_mouse_moving())
         {
-            head_element.pos += draw::get_mouse_delta();
-        }
+            head_element.m_pos += draw::get_mouse_delta();
+        }*/
 
         // Processes mouse events for all mouse listeners.
-        process_mouse_events(&head_element);
+        //process_mouse_events(&head_element);
 
-        tow_mouse.update();
+        //tow_mouse.update();
 
         head_element.draw();
 
         draw::end_frame();
+    }
+
+    void set_world_center(const vec& pos)
+    {
+        head_element.set_pos(pos);
     }
 
     void terminate()
@@ -322,12 +321,11 @@ namespace qgl
         draw::draw_mask(false);
         draw::shape_color(fill.top, fill.bottom);
 
-        vec screen_pos = get_screen_pos(this);
         float scale = options[WORLD] ? view_scale : 1.0f;
         draw::set_text_scale(scale * text_scale);
-        draw::scissor(screen_pos, scale * dim);
+        draw::scissor(pos(), size());
 
-        vec cursor = screen_pos;
+        vec cursor = pos();
         for (const std::string& str : lines)
         {
             draw::draw_text(cursor, str);
@@ -338,7 +336,7 @@ namespace qgl
         {
             if (options[OCCLUDE_CHILDREN])
             {
-                draw::scissor(screen_pos, dim * scale);
+                draw::scissor(pos(), size());
             }
 
             for (ElementPtr& cep : child_storage)
@@ -367,7 +365,7 @@ namespace qgl
 
         draw::set_text_scale(text_scale);
 
-        int max_lines = std::ceilf(dim.y / (draw::get_text_size("").y*text_scale));
+        int max_lines = std::ceilf(m_size.y / (draw::get_text_size("").y*text_scale));
         std::string line = "";
         float line_width = 0;
         int token_start = 0;
@@ -378,7 +376,7 @@ namespace qgl
             {
                 std::string token = text.substr(token_start, k + 1 - token_start);
                 float token_width = draw::get_text_size(token).x * text_scale;
-                if (line_width + token_width < dim.x)
+                if (line_width + token_width < m_size.x)
                 {
                     line += token;
                     line_width = line_width + token_width;
@@ -404,7 +402,7 @@ namespace qgl
         if (token_start < text.length())
         {
             std::string final_token = text.substr(token_start);
-            if (line_width + draw::get_text_size(final_token).x < dim.x)
+            if (line_width + draw::get_text_size(final_token).x < m_size.x)
             {
                 lines.push_back(line + final_token);
             }
@@ -427,7 +425,6 @@ namespace qgl
         draw::draw_mask(true);
         draw::use_texture(false);
 
-        vec screen_pos = get_screen_pos(this);
         float scale = options[WORLD] ? view_scale : 1.0f;
 
         // All the shader access should be setters.
@@ -435,7 +432,7 @@ namespace qgl
 
         draw::shape_color(fill.top, fill.bottom);
 
-        draw::draw_rect(screen_pos, dim * scale);
+        draw::draw_rect(pos(), m_size * scale);
 
         // Draw outline
         if (outline_thickness > 0)
@@ -457,14 +454,14 @@ namespace qgl
             // We should set the alpha to scale
             // so that outlines fade away as they become thinner than a pixel.
 
-            draw::draw_rect(screen_pos - outline_thickness * scale, scale * (dim + outline_thickness * 2.0f * glm::sign(dim)));
+            draw::draw_rect(pos() - outline_thickness * scale, size() + scale * outline_thickness * 2.0f * glm::sign(size()));
         } // End draw outline
 
         if (child_storage.size())
         {
             if (options[OCCLUDE_CHILDREN])
             {
-                draw::scissor(screen_pos, dim * view_scale);
+                draw::scissor(pos(), size());
             }
 
             for (ElementPtr& cep : child_storage)
@@ -483,6 +480,11 @@ namespace qgl
     void Curve::draw()
     {
         draw::draw_curve(points);
+    }
+
+    std::string TextBox::get_text()
+    {
+        return text;
     }
 }
 

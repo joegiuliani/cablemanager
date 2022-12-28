@@ -51,6 +51,9 @@ glm::vec3 hsv(float h, float s, float v)
 	return ret + (v - chroma);
 }
 
+typedef std::reference_wrapper<qgl::Shape> Pane;
+typedef std::reference_wrapper<qgl::TextBox> Label;
+
 class Port
 {
 public:
@@ -58,16 +61,22 @@ public:
 	unsigned long int id;
 	Port* connection = nullptr;
 
-	qgl::Shape& pane = qgl::head_element.add_child<qgl::Shape>();
-
 	Port()
 	{
 		id = borrow_id();
-		pane.fill.top = pane.fill.bottom = qgl::color(1);
-		pane.outline.top = pane.outline.bottom = qgl::color(0,0,0,1);
-		pane.outline_thickness = 1.5;
-		pane.corner_radius = 4;
-		pane.set_size(qgl::vec(8));
+		pane().fill.top = pane().fill.bottom = qgl::color(1);
+		pane().outline.top = pane().outline.bottom = qgl::color(0, 0, 0, 1);
+		pane().outline_thickness = 1.5;
+		pane().corner_radius = 4;
+		pane().set_size(qgl::vec(8));
+	}
+
+	Port(const Port& p)
+	{
+		name = p.name;
+		id = borrow_id();
+		connection = p.connection;
+		m_pane = p.m_pane;
 	}
 
 	~Port()
@@ -94,13 +103,18 @@ public:
 		connection = nullptr;
 	}
 
-private:
+	qgl::Shape& pane()
+	{
+		return m_pane.get();
+	}
+
+protected:
 
 	// Port ID <0> is reserved.
 	static unsigned long int id_index;
 	static std::stack<unsigned long int> unused_ids;
 	
-	unsigned long int borrow_id()
+	static unsigned long int borrow_id()
 	{
 		if (Port::unused_ids.empty())
 		{
@@ -115,10 +129,13 @@ private:
 		}
 	}
 
-	void yield_id(unsigned long int id)
+	static void yield_id(unsigned long int id)
 	{
 		Port::unused_ids.push(id);
 	}
+
+private:
+	Pane m_pane = qgl::head_element.add_child<qgl::Shape>();
 };
 
 unsigned long int Port::id_index = 1;
@@ -127,69 +144,72 @@ std::stack<unsigned long int> Port::unused_ids = std::stack<unsigned long int>()
 class Node
 {
 public:
-	qgl::Shape& pane = qgl::head_element.add_child<qgl::Shape>();
-	qgl::TextBox& label = pane.add_child<qgl::TextBox>();
 	std::list<Port> inputs;
 	std::list<Port> outputs;
 	std::list<Port> uputs;
 
-	void on_drag(qgl::Element)
-	{
-
-	}
-
 	Node()
 	{
-		pane.fill.top = qgl::color(0.3, 0.09, .15, 1);
-		pane.fill.bottom = pane.fill.top * 0.8f;
-		pane.set_size(qgl::vec(75, 75));
-		pane.options[qgl::Element::WORLD] = true;
-		pane.outline_thickness = 1.5;
-		pane.outline.top = qgl::color(1);
-		pane.corner_radius = 4;
+		pane().fill.top = qgl::color(0.3, 0.09, .15, 1);
+		pane().fill.bottom = pane().fill.top * 0.8f;
+		pane().set_size(qgl::vec(75, 75));
+		pane().options[qgl::Element::WORLD] = true;
+		pane().outline_thickness = 1.5;
+		pane().outline.top = qgl::color(1);
+		pane().corner_radius = 4;
 
-		label.set_text_scale(18);
-		label.set_size(qgl::vec(100, 100));
-		label.fill.top = label.fill.bottom = qgl::color(1);
-		label.pos = qgl::vec(10, 10);
-		label.options[qgl::Element::WORLD] = true;
+		label().set_text_scale(18);
+		label().set_size(qgl::vec(100, 100));
+		label().fill.top = label().fill.bottom = qgl::color(1);
+		label().set_pos(qgl::vec(10));
+		label().options[qgl::Element::WORLD] = true;
 
-		pane.options[qgl::Element::MOUSE_LISTENER] = true;
-		auto drag_element = [&](qgl::Element* element_ptr)
-		{
-			qgl::follow_mouse
-			(
-				element_ptr, // this
-				[&]() {return draw::is_mouse_released(); } // condition to stop following the mouse
-			);
-		};
-
-		// Label will follow since its a child
-		pane.on_press(drag_element);
+		pane().options[qgl::Element::MOUSE_LISTENER] = true;
 	}
-
-	Node(const Node& n)
+	
+	qgl::Shape& pane()
 	{
-		pane = 
+		return m_pane.get();
 	}
+
+	qgl::TextBox& label()
+	{
+		return m_label.get();
+	}
+
+private:
+	Pane m_pane = qgl::head_element.add_child<qgl::Shape>();
+	Label m_label = m_pane.get().add_child<qgl::TextBox>();
 };
+
+// issue with the memento class is that we have to keep track of all actions, not just per node
+// So like if i hit ctrl z in a scene, i may undo one node but not another... its action specific not node specific.
+// So really the scene needs a memento for all nodes
 
 class Scene
 {
 public:
 	std::list<Node> nodes;
+	std::string name = "Untitled";
+
+	const std::string EXTENSION = ".cms";
+
+	typedef std::string token;
+	const token NODE = "node";
+	const token NODE_SIZE = "size";
+	const token NODE_POS = "position";
+	const token NODE_NAME = "name";
+
 
 	int count(const std::string& str, char c)
 	{
 		int ct = 0;
-		for (auto& str_char : str)
+		size_t index = str.find(c, 0);
+		while (index != std::string::npos)
 		{
-			if (c == str_char)
-			{
-				ct++;
-			}
+			ct++;
+			index = str.find(c, index);
 		}
-
 		return ct;
 	}
 
@@ -324,20 +344,24 @@ public:
 	void load(std::string file_path)
 	{
 		// validate extension
-		std::string file_extension = file_path.substr(file_path.length() - 4);
-		if (file_extension.compare(".cms") != 0)
+		size_t dot_index = file_path.length() - 4;
+		std::string file_extension = file_path.substr(dot_index);
+		if (file_extension.compare(EXTENSION) != 0)
 		{
 			std::cout << "Invalid file extension for \"" + file_path + "\"\n";
 			return;
 		}
 
+		name = file_path.substr(0, dot_index);
+
 		std::ifstream file;
 		file.open(file_path);
 
 		std::string header = read_block(file, '[', ']');
-		if (header.compare("Node") == 0)
+		if (header.compare(NODE) == 0)
 		{
 			nodes.push_back(Node());
+			nodes.back().pane().options[qgl::Element::WORLD] = true;
 			
 			// Get everything contained by the Node block
 			std::string blck = read_block(file, '{', '}');
@@ -406,26 +430,115 @@ public:
 		}
 
 		if (array_index < array_length) std::cout << array_index + 1 << " out of " << array_length << " float found.\n";
-	} 
+	} 	
+
+#define if_key_matches(value) if (key.compare(value) == 0)
+#define else_if_key_matches(value) else if_key_matches(value)
 
 	void parse_node_variable(const std::string& line, Node& node)
 	{
-		const std::string NAME = "name";
-		const std::string SIZE = "size";
-		
+
 		std::string key = read_block(line, '[', ']');
-		if (key.compare(NAME) == 0)
+		if_key_matches(NODE_NAME)
 		{
 			std::string value_block = read_block(line, '{', '}');
-			node.label.set_text(value_block);
+			node.label().set_text(value_block);
 		}
-		else if (key.compare(SIZE) == 0)
+		else_if_key_matches(NODE_SIZE)
 		{
 			float dimensions[2];
 			std::string value_block = read_block(line, '{', '}');
 			read_float_array(value_block, dimensions, 2);
-			node.pane.set_size(qgl::vec(dimensions[0], dimensions[1]));
+			node.pane().set_size(qgl::vec(dimensions[0], dimensions[1]));
 		}
+		else_if_key_matches(NODE_POS)
+		{
+			float dimensions[2];
+			std::string value_block = read_block(line, '{', '}');
+			read_float_array(value_block, dimensions, 2);
+			node.pane().set_pos(qgl::vec(dimensions[0], dimensions[1]));
+		}	
+	}
+
+#undef if_key_matches
+#undef else_if_key_matches
+
+	std::string get_file_name()
+	{
+		return name + EXTENSION;
+	}
+
+	void save_as(std::string new_name)
+	{
+		name = new_name;
+
+		std::ofstream file;
+		file.open(get_file_name(), std::ios::trunc);
+
+		std::stack<int> depth_tracker;
+		depth_tracker.push(0);
+
+		auto add_comma_if_needed = [&]()
+		{
+			if (depth_tracker.size() && depth_tracker.top() > 0)
+				file << ',';
+		};
+
+		auto open_key = [&](std::string name)
+		{
+			add_comma_if_needed();
+
+			name = '[' + name + "] {";
+			file << name;
+
+			depth_tracker.top()++;
+
+			depth_tracker.push(0);
+		};
+
+		auto close_key = [&]()
+		{
+			file << "}";
+			depth_tracker.pop();
+		};
+
+		auto add_value = [&](std::string val)
+		{
+			add_comma_if_needed();
+
+			file << val;
+			depth_tracker.top()++;
+		};
+
+		auto add_vec = [&](const glm::vec2& vec)
+		{
+			add_value(std::to_string(vec.x));
+			add_value(std::to_string(vec.y));
+		};
+
+		for (auto& node : nodes)
+		{
+			open_key(NODE);
+			{
+				open_key(NODE_NAME);
+				{
+					add_value(node.label().get_text());
+				} close_key();
+
+				open_key(NODE_SIZE);
+				{
+					add_vec(node.pane().size());
+				} close_key();
+
+				open_key(NODE_POS);
+				{
+					add_vec(node.pane().pos());
+				} close_key();
+
+			} close_key();
+		}
+
+		file.close();
 	}
 };
 
@@ -475,7 +588,7 @@ int main()
 	/*qgl::TextBox& text_box = qgl::new_Element<qgl::TextBox>();
 	text_box.fill.top = glm::vec4(1, 0, 1, 1);
 	text_box.fill.bottom = text_box.fill.top;
-	text_box.pos = glm::vec2(30, 30);
+	text_box.m_pos = glm::vec2(30, 30);
 	text_box.set_text("whats up");
 	text_box.set_size(glm::vec2(40,40));
 	text_box.set_text_scale(24);
@@ -491,5 +604,8 @@ int main()
     {
         qgl::on_frame();
     }
+
+	s.save_as("first_scene");
+
     qgl::terminate();
 }
