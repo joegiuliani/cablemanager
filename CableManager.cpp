@@ -7,6 +7,7 @@
 #include <glfw/glfw3.h>
 #include "qgl.h"
 #include <stack>
+#include "scene.h"
 
 glm::vec2 quadratic_bezier(float t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
 {
@@ -141,6 +142,7 @@ private:
 unsigned long int Port::id_index = 1;
 std::stack<unsigned long int> Port::unused_ids = std::stack<unsigned long int>();
 
+
 class Node
 {
 public:
@@ -182,363 +184,119 @@ private:
 	Label m_label = m_pane.get().add_child<qgl::TextBox>();
 };
 
+class Scene;
+class Node;
+Scene* active_scene_ptr = nullptr;
+Scene& active_scene()
+{
+	return *active_scene_ptr;
+}
+
 // issue with the memento class is that we have to keep track of all actions, not just per node
 // So like if i hit ctrl z in a scene, i may undo one node but not another... its action specific not node specific.
 // So really the scene needs a memento for all nodes
 
-class Scene
+
+
+class Command
 {
 public:
-	std::list<Node> nodes;
-	std::string name = "Untitled";
+	virtual void execute() = 0;
+	virtual void reverse() = 0;
+};
 
-	const std::string EXTENSION = ".cms";
-
-	typedef std::string token;
-	const token NODE = "node";
-	const token NODE_SIZE = "size";
-	const token NODE_POS = "position";
-	const token NODE_NAME = "name";
-
-
-	int count(const std::string& str, char c)
+class MoveNode : public Command
+{
+	std::reference_wrapper<Node> node;
+	qgl::vec last_pos_world; // We store the previous position in world since the camera center may have changed before undoing.
+	qgl::vec new_pos;
+public:
+	MoveNode(Node& n, qgl::vec pos) :node(n)
 	{
-		int ct = 0;
-		size_t index = str.find(c, 0);
-		while (index != std::string::npos)
-		{
-			ct++;
-			index = str.find(c, index);
-		}
-		return ct;
+		last_pos_world = qgl::screen_to_world_projection(n.pane().pos());
+		new_pos = pos;
 	}
 
-	std::string remove_white_space(const std::string& str)
+	virtual void execute()
 	{
-		std::string ret = "";
-
-		bool in_quotes = false;
-		for (const char& c : str)
-		{
-			if (c == '\"')
-			{
-				in_quotes = !in_quotes;
-				continue;
-			}
-				
-			if (in_quotes) ret += c;
-
-			else if (c == '\n' || c == ' ' || c == '\t')
-			{
-				continue;
-			}
-
-			else ret += c;
-		}
-
-		return ret;
+		node.get().pane().set_pos(new_pos);
 	}
 
-	std::string read_block(std::ifstream& file, char open_delim, char close_delim)
+	virtual void reverse()
 	{
-		std::string sum = "";
-
-		int num_open = 0;
-
-		char c = file.get();
-		while (!file.eof() && c != open_delim)
-		{
-			if (c == close_delim)
-			{
-				std::cout << "Invalid arguments. Found first close delim before first open delim\n";
-				return "";
-			}
-
-			c = file.get();
-		}
-
-		if (file.eof())
-		{
-			std::cout << "No open delim found";
-			return "";
-		}
-
-		num_open = 1;
-		sum += open_delim;
-		int num_close = 0;
-
-		while (!file.eof() && num_open > num_close)
-		{
-			char c = file.get();
-			sum += c;
-			// TODO check if line contains '\n'
-
-			if (c == open_delim) num_open++;
-			else if (c == close_delim) num_close++;
-		}
-
-		if (num_open > num_close)
-		{
-			std::cout << "NOt enough close delims found in file\n";
-			return "";
-		}
-
-		return remove_white_space(sum.substr(1, sum.find_last_of(close_delim)-1));
+		node.get().pane().set_pos(qgl::world_to_screen_projection(last_pos_world));
 	}
-	
-	std::string read_block(const std::string& str, char open_delim, char close_delim)
+};
+
+class DeleteNode : public Command
+{
+	Node node_state;
+	Node* node_ptr;
+
+public:
+	DeleteNode(Node& n)
 	{
-		int cursor = 0;
-		int num_open = 0;
-
-		while (cursor < str.length() && str[cursor] != open_delim)
-		{
-			if (str[cursor] == close_delim)
-			{
-				std::cout << "Invalid arguments. Found first close delim before first open delim\n";
-				return "";
-			}
-			cursor++;
-		}
-
-		if (cursor == str.length())
-		{
-			std::cout << "No open delim found";
-			return "";
-		}
-
-		num_open = 1;
-		size_t first_delim_index = cursor;
-		cursor++;
-
-		int num_close = 0;
-		while (cursor < str.length())
-		{
-			char c = str[cursor];
-
-			if (c == open_delim) num_open++;
-			else if (c == close_delim)
-			{
-				num_close++;
-				if (num_close == num_open)
-				{
-					break;
-				}
-			}
-
-			cursor++;
-		}
-
-		if (cursor == str.length())
-		{
-			std::cout << "Invalid arguments. Not enough close delims found\n";
-			return "";
-		}
-
-		std::string contents = str.substr(first_delim_index + 1, cursor - first_delim_index - 1);
-		std::string contents_no_white_space = remove_white_space(contents);
-
-		return contents_no_white_space;
+		node_state = n;
+		node_ptr = &n;
 	}
 
-	void load(std::string file_path)
+	virtual void execute()
 	{
-		// validate extension
-		size_t dot_index = file_path.length() - 4;
-		std::string file_extension = file_path.substr(dot_index);
-		if (file_extension.compare(EXTENSION) != 0)
+		auto pred = [&](const Node& n) -> bool
 		{
-			std::cout << "Invalid file extension for \"" + file_path + "\"\n";
-			return;
-		}
-
-		name = file_path.substr(0, dot_index);
-
-		std::ifstream file;
-		file.open(file_path);
-
-		std::string header = read_block(file, '[', ']');
-		if (header.compare(NODE) == 0)
-		{
-			nodes.push_back(Node());
-			nodes.back().pane().options[qgl::Element::WORLD] = true;
-			
-			// Get everything contained by the Node block
-			std::string blck = read_block(file, '{', '}');
-			parse_node(blck, nodes.back());
-		}
-	}
-	
-	size_t find_at_scope(const std::string& str, char c, int offset = 0)
-	{
-		int num_open = 0;
-		int num_close = 0;
-		for (size_t k = offset; k < str.length(); k++)
-		{
-			if (str[k] == '{') num_open++;
-			if (str[k] == '}') num_close++;
-
-			if (num_open == num_close)
-			{
-				if (str[k] == c)
-					return k;
-			}
-		}
-
-		return std::string::npos;
-	}
-
-	void parse_node(const std::string& block, Node& node)
-	{
-		size_t line_start = 0;
-		size_t next_comma = find_at_scope(block, ',', line_start);
-
-		while (next_comma != std::string::npos)
-		{
-			std::string var_block = block.substr(line_start, next_comma - line_start);
-			parse_node_variable(var_block, node);
-			
-			line_start = next_comma + 1;
-			next_comma = find_at_scope(block, ',', line_start);
-		}
-
-		parse_node_variable(block.substr(line_start, next_comma), node);
-
-		// add code to get last node variable.
-	}
-
-	/*
-		Expects a string in the form of "3.932,390,0.11". No white space, no unnecessary commas. Only digits, dots, and commas.
-	*/
-	void read_float_array(const std::string& block, float* arr, int array_length)
-	{
-		int cursor = 0;
-		int array_index = 0;
-		size_t comma_pos = block.find(',');
-
-		while (comma_pos != std::string::npos && array_index < array_length && cursor < block.length())
-		{
-			arr[array_index] = std::stof(block.substr(cursor, comma_pos - cursor));
-			cursor = comma_pos + 1;
-			comma_pos = block.find(',', cursor);
-			array_index++;
-		}
-
-		if (array_index < array_length)
-		{
-			arr[array_index] = std::stof(block.substr(cursor));
-		}
-
-		if (array_index < array_length) std::cout << array_index + 1 << " out of " << array_length << " float found.\n";
-	} 	
-
-#define if_key_matches(value) if (key.compare(value) == 0)
-#define else_if_key_matches(value) else if_key_matches(value)
-
-	void parse_node_variable(const std::string& line, Node& node)
-	{
-
-		std::string key = read_block(line, '[', ']');
-		if_key_matches(NODE_NAME)
-		{
-			std::string value_block = read_block(line, '{', '}');
-			node.label().set_text(value_block);
-		}
-		else_if_key_matches(NODE_SIZE)
-		{
-			float dimensions[2];
-			std::string value_block = read_block(line, '{', '}');
-			read_float_array(value_block, dimensions, 2);
-			node.pane().set_size(qgl::vec(dimensions[0], dimensions[1]));
-		}
-		else_if_key_matches(NODE_POS)
-		{
-			float dimensions[2];
-			std::string value_block = read_block(line, '{', '}');
-			read_float_array(value_block, dimensions, 2);
-			node.pane().set_pos(qgl::vec(dimensions[0], dimensions[1]));
-		}	
-	}
-
-#undef if_key_matches
-#undef else_if_key_matches
-
-	std::string get_file_name()
-	{
-		return name + EXTENSION;
-	}
-
-	void save_as(std::string new_name)
-	{
-		name = new_name;
-
-		std::ofstream file;
-		file.open(get_file_name(), std::ios::trunc);
-
-		std::stack<int> depth_tracker;
-		depth_tracker.push(0);
-
-		auto add_comma_if_needed = [&]()
-		{
-			if (depth_tracker.size() && depth_tracker.top() > 0)
-				file << ',';
+			return &n == node_ptr;
 		};
+		active_scene().nodes.remove_if(pred);
+		node_ptr = nullptr;
+	}
 
-		auto open_key = [&](std::string name)
+	virtual void reverse()
+	{
+		active_scene().nodes.push_back(node_state);
+		node_ptr = &active_scene().nodes.back();
+	}
+};
+
+class CommandManager
+{
+public:
+	typedef std::stack<std::shared_ptr<Command>> command_stack;
+	command_stack available_undos;
+	command_stack available_redos;
+
+	template<typename T>
+	void add_command(T command)
+	{
+		clear_stack(available_redos);
+
+		available_undos.push(std::make_shared<T>(command));
+		available_undos.top()->execute();
+	}
+
+	void undo()
+	{
+		if (available_undos.size())
 		{
-			add_comma_if_needed();
-
-			name = '[' + name + "] {";
-			file << name;
-
-			depth_tracker.top()++;
-
-			depth_tracker.push(0);
-		};
-
-		auto close_key = [&]()
-		{
-			file << "}";
-			depth_tracker.pop();
-		};
-
-		auto add_value = [&](std::string val)
-		{
-			add_comma_if_needed();
-
-			file << val;
-			depth_tracker.top()++;
-		};
-
-		auto add_vec = [&](const glm::vec2& vec)
-		{
-			add_value(std::to_string(vec.x));
-			add_value(std::to_string(vec.y));
-		};
-
-		for (auto& node : nodes)
-		{
-			open_key(NODE);
-			{
-				open_key(NODE_NAME);
-				{
-					add_value(node.label().get_text());
-				} close_key();
-
-				open_key(NODE_SIZE);
-				{
-					add_vec(node.pane().size());
-				} close_key();
-
-				open_key(NODE_POS);
-				{
-					add_vec(node.pane().pos());
-				} close_key();
-
-			} close_key();
+			available_undos.top()->reverse();
+			available_redos.push(available_undos.top());
+			available_undos.pop();
 		}
+	}
 
-		file.close();
+	void redo()
+	{
+		if (available_redos.size())
+		{
+			available_redos.top()->execute();
+			available_undos.push(available_redos.top());
+			available_redos.pop();
+		}
+	}
+
+	void clear_stack(command_stack& s)
+	{
+		while (!s.empty())
+			s.pop();
 	}
 };
 
@@ -569,6 +327,7 @@ int main()
 	glm::vec2 post_magnet = clamp_pos(magnet, out, k);
 
 	Scene s;
+	active_scene_ptr = &s;
 	s.load("first_scene.cms");
 
 		/*qgl::Curve& curve = qgl::new_Element<qgl::Curve>();
@@ -604,6 +363,11 @@ int main()
     {
         qgl::on_frame();
     }
+
+	CommandManager cm;
+	cm.add_command(DeleteNode(s.nodes.back()));
+	cm.undo();
+	cm.redo();
 
 	s.save_as("first_scene");
 
