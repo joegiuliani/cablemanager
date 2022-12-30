@@ -69,7 +69,7 @@ std::vector<GLubyte> shape_elems
 {
     2, 1, 0, 2, 0, 3
 };
-
+s
 void set_draw_texture(unsigned int texture_id);
 constexpr float GLOBAL_FONT_SCALE = 1.0f;
 constexpr float advance_fac = 1.0f / float(1 << 6);
@@ -310,9 +310,6 @@ namespace draw
         {
             mouse_scroll.new_state(0);
         }
-
-
-
         apply_mask(false);
         draw_mask(false);
         shape_color(glm::vec4(1));

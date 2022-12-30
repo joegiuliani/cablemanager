@@ -4,7 +4,8 @@
 #include <glm/common.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
-
+#include <memory>
+#include <functional>
 
 // Certain styling features only make sense for rects or rects and curves so that should be its own class
 // And Ishould utilize multiple inheritance otherwise were wasting space.
@@ -14,6 +15,9 @@
 
 namespace qgl
 {
+
+
+
     typedef char Flag;
     typedef unsigned int FlagIndex;
 
@@ -38,6 +42,21 @@ namespace qgl
     constexpr void* NO_FUNCTION = nullptr;
 
     inline float view_scale = 1;
+
+    namespace Mouse
+    {
+        inline vec pos;
+        inline vec delta;
+        inline bool moving;
+        inline int scroll;
+        bool is_down(int button = 0);
+
+        typedef std::function<void()> MouseCallback;
+
+        // We will later make these inaccessible outside the source file
+        // and create methods to add and remove
+        inline std::vector<MouseCallback> move, press, release, scroll;
+    };
 
     class Element
     {
@@ -88,14 +107,6 @@ namespace qgl
         }
 
         void clip_children(bool flag);
-
-        //void on_press(CallbackFn cf);
-        //void on_drag(CallbackFn cf);
-        //void on_hover(CallbackFn cf);
-        //void on_release(CallbackFn cf);
-        //void on_enter(CallbackFn cf);
-        //void on_exit(CallbackFn cf)
-        //bool process_mouse_events();
 
         // All deal with pixel space
         vec pos();

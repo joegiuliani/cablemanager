@@ -165,6 +165,11 @@ namespace qgl
             draw::stop_scissor();
         }
     }
+ 
+    bool Mouse::is_down(int button)
+    {
+        return draw::is_mouse_down(button);
+    }
 
     void init()
     {
@@ -222,12 +227,23 @@ namespace qgl
         }
     } */
 
-    /*void process_mouse_events(Element* element_ptr)
+    void process_mouse_events()
     {
-        //Element& element = *element_ptr;
-        element_ptr->process_mouse_events();
-        
+        if (draw::is_mouse_moving()) for (auto& mc : Mouse::move) mc();
+
+        if (draw::is_mouse_pressed(draw::MOUSE_LEFT) ||
+            draw::is_mouse_pressed(draw::MOUSE_MIDDLE) ||
+            draw::is_mouse_pressed(draw::MOUSE_RIGHT)) for (auto& mc : Mouse::press) mc();
+
+        if (draw::is_mouse_released(draw::MOUSE_LEFT) ||
+            draw::is_mouse_released(draw::MOUSE_MIDDLE) ||
+            draw::is_mouse_released(draw::MOUSE_RIGHT)) for (auto& mc : Mouse::release) mc();
+
+        if (draw::get_mouse_scroll()) for (auto& mc : Mouse::move) mc();
+
+           
     }
+    /*
     bool Element::process_mouse_events()
     {
         // We draw one branch at a time in forward order, parent first
@@ -287,7 +303,9 @@ namespace qgl
         }*/
 
         // Processes mouse events for all mouse listeners.
-        //process_mouse_events(&head_element);
+        process_mouse_events();
+
+        
 
         //tow_mouse.update();
 
