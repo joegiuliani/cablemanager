@@ -8,6 +8,8 @@
 #include "qgl.h"
 
 
+
+
 namespace qgl
 {
     class GodElement : public Element
@@ -123,20 +125,13 @@ namespace qgl
 
     vec Element::pos()
     {
-        vec ret = options[Element::WORLD] ? world_to_screen_scale(m_pos) : m_pos;
+        vec ret = options[WORLD] ? world_to_screen_scale(m_pos) : m_pos;
 
-        // Offsets element by parents' positions
-        // Child positions are always relative.
-        // Has parent should always be true unless element_ptr points to the god element
-        if (has_parent(*this))
+        Element* parent_ptr = parent;
+        while (parent_ptr != nullptr)
         {
-            Element* parent_ptr = parent;
-
-            while (parent_ptr != nullptr)
-            {
-                ret += parent_ptr->options[Element::WORLD] ? world_to_screen_scale(parent_ptr->m_pos) : parent_ptr->m_pos;
-                parent_ptr = parent_ptr->parent;
-            }
+            ret += parent_ptr ? world_to_screen_scale(parent_ptr->m_pos) : parent_ptr->m_pos;
+            parent_ptr = parent_ptr->parent;
         }
 
         return ret;
@@ -144,7 +139,7 @@ namespace qgl
 
     void Element::set_pos(const vec& v)
     {
-        m_pos = options[WORLD] ? screen_to_world_projection(v) : v;
+        m_pos = options[WORLD] ? screen_to_world_scale(v) : v;
     }
 
     void Element::draw()
@@ -179,7 +174,7 @@ namespace qgl
     /*
     void follow_mouse(Element* element, std::function<bool()> stop_condition_fn)
     {
-        tow_mouse.begin(element, stop_condition_fn);
+        tow_Mouse::begin(element, stop_condition_fn);
     }
 
    
@@ -227,21 +222,60 @@ namespace qgl
         }
     } */
 
-    void process_mouse_events()
-    {
-        if (draw::is_mouse_moving()) for (auto& mc : Mouse::move) mc();
 
+    void Mouse::remove_this_callback()
+    {
+        remove_flag = true;
+    }
+
+    void Mouse::remove_callback(std::list<MouseCallbackPtr>& cbl, MouseCallbackPtr cb)
+    {
+        callbacks_to_remove.insert(std::pair(&cbl, cb));
+    }
+
+    void Mouse::process_mouse_events()
+    {
+        pos = draw::get_mouse_pos();
+        scroll_dir = draw::get_mouse_scroll();
+        delta = draw::get_mouse_delta();
+
+        auto call_list = [&](std::list<MouseCallbackPtr> cbl)
+        {
+            for (auto& cb : cbl)
+            {
+                cb();
+                if (remove_flag)
+                {
+                    callbacks_to_remove.insert(std::pair(&cbl, cb));
+                    remove_flag = false;
+                }
+            }
+        };
+
+        // Note the qualifiers on the for each vars
+        if (draw::is_mouse_moving())
+            call_list(move);
+        
         if (draw::is_mouse_pressed(draw::MOUSE_LEFT) ||
             draw::is_mouse_pressed(draw::MOUSE_MIDDLE) ||
-            draw::is_mouse_pressed(draw::MOUSE_RIGHT)) for (auto& mc : Mouse::press) mc();
+            draw::is_mouse_pressed(draw::MOUSE_RIGHT))
+
+            call_list(press);
 
         if (draw::is_mouse_released(draw::MOUSE_LEFT) ||
             draw::is_mouse_released(draw::MOUSE_MIDDLE) ||
-            draw::is_mouse_released(draw::MOUSE_RIGHT)) for (auto& mc : Mouse::release) mc();
+            draw::is_mouse_released(draw::MOUSE_RIGHT))
+            call_list(release);
 
-        if (draw::get_mouse_scroll()) for (auto& mc : Mouse::move) mc();
+        if (draw::get_mouse_scroll())
+            call_list(scroll);
 
-           
+        for (auto& cbp : callbacks_to_remove)
+        {
+            cbp.first->erase(std::find(cbp.first->begin(), cbp.first->end(), cbp.second));
+        }
+
+        callbacks_to_remove.clear();
     }
     /*
     bool Element::process_mouse_events()
@@ -303,11 +337,11 @@ namespace qgl
         }*/
 
         // Processes mouse events for all mouse listeners.
-        process_mouse_events();
+        Mouse::process_mouse_events();
 
         
 
-        //tow_mouse.update();
+        //tow_Mouse::update();
 
         head_element.draw();
 
@@ -444,6 +478,8 @@ namespace qgl
         draw::use_texture(false);
 
         float scale = options[WORLD] ? view_scale : 1.0f;
+
+        vec spos = pos();
 
         // All the shader access should be setters.
         draw::shape_corner(scale * corner_radius);

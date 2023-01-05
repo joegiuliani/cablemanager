@@ -1,24 +1,9 @@
 #include "comman.h"
-#include <stack>
-#include <memory>
 
-typedef std::stack<std::shared_ptr<Command>> command_stack;
-command_stack available_undos;
-command_stack available_redos;
-
-void clear_stack(command_stack& s)
+void CommandManager::clear_stack(command_stack& s)
 {
 	while (!s.empty())
 		s.pop();
-}
-
-template<typename T>
-void CommandManager::add_command(T command)
-{
-	clear_stack(available_redos);
-
-	available_undos.push(std::make_shared<T>(command));
-	available_undos.top()->execute();
 }
 
 void CommandManager::undo()

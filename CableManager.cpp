@@ -10,6 +10,7 @@
 #include "scene.h"
 #include "node.h"
 #include "comman.h"
+#include <cassert>
 
 glm::vec2 quadratic_bezier(float t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
 {
@@ -112,8 +113,71 @@ public:
 	}
 };
 
+
+bool inside_rectangle(const glm::vec2& v, const glm::vec2& lower_bound, const glm::vec2& upper_bound) {
+	return (v.x >= lower_bound.x && v.x <= upper_bound.x && v.y >= lower_bound.y && v.y <= upper_bound.y);
+}
+
+template <typename T>
+std::function<bool(const std::function<T>&)> lambda_equal_pred(const std::function<T>& target)
+{
+	return [&](const std::function<T>& fn) -> bool
+	{
+		return target.target<T*>() == fn.target<T*>();
+	};
+}
+
+Scene s;
+CommandManager cm;
+
+
+
+void node_move_callback()
+{
+	s.nodes.back().pane().set_pos(qgl::Mouse::pos);
+}
+
+void node_release_callback()
+{
+	cm.add_command(MoveNode(s.nodes.back(), qgl::Mouse::pos));
+
+	qgl::Mouse::remove_this_callback();
+	qgl::Mouse::remove_callback(qgl::Mouse::move, node_move_callback);		
+	
+	//qgl::Mouse::release.erase(std::remove(qgl::Mouse::move.begin(), qgl::Mouse::move.end(), node_release_callback), qgl::Mouse::release.end());
+}
+
+void node_press_callback()
+{
+	if (inside_rectangle(qgl::Mouse::pos, s.nodes.back().pane().pos(), s.nodes.back().pane().pos() + s.nodes.back().pane().size()))
+	{
+		qgl::Mouse::move.push_back(node_move_callback);
+		qgl::Mouse::release.push_back(node_release_callback);
+	}
+}
+/*
+typedef void (*fn_ptr)();
+std::vector<fn_ptr> fns;
+
+void foo()
+{
+
+	fns.erase(std::remove(fns.begin(), fns.end(), foo), fns.end());
+
+}
+
 int main()
 {
+	fns.push_back(foo);
+
+	foo();
+
+	return 0;
+}
+*/
+int main()
+{
+	active_scene_ptr = &s;
     qgl::init();
 
 	// We can store a constant amount of vertices for the curve buffer. 
@@ -135,9 +199,14 @@ int main()
 	glm::vec2 pre_magnet = clamp_pos(magnet, in, k);
 	glm::vec2 post_magnet = clamp_pos(magnet, out, k);
 
-	Scene s;
-	active_scene_ptr = &s;
+
 	s.load("first_scene.cms");
+
+	qgl::Mouse::press.push_back(
+		node_press_callback
+	);
+
+	// At some point i want to split classes like Node and Port into two separate structs - the gui and the actual data. 
 
 	/*qgl::Curve& curve = qgl::head_element.add_child<qgl::Curve>();
 	curve.fill.top = glm::vec4(1);
@@ -161,12 +230,12 @@ int main()
 	text_box.set_size(glm::vec2(40,40));
 	text_box.set_text_scale(24);*/
 
+	glm::vec2 v1 = qgl::screen_to_world_projection(qgl::world_to_screen_projection(glm::vec2(0)));
+
     while (qgl::is_running())
     {
         qgl::on_frame();
     }
-
-	CommandManager cm;
 
 	s.save_as("first_scene");
 

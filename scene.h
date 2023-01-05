@@ -6,7 +6,6 @@
 
 class Node;
 
-
 class Scene
 {
 public:
@@ -22,10 +21,6 @@ public:
 	std::list<Node> nodes;
 
 	void load(std::string file_path);
-
-	void parse_node(const std::string& block, Node& node);
-
-	void parse_node_variable(const std::string& line, Node& node);
 
 	std::string get_file_name();
 

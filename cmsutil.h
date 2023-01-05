@@ -5,39 +5,42 @@
 #include <vector>
 #include <glm/vec2.hpp>
 
-namespace CMSUtil
+
+class CMSWriter
 {
-	int count(const std::string& str, char c);
-	std::string remove_white_space(const std::string& str);
+public:
 
-	std::string read_block(std::ifstream& file, char open_delim, char close_delim);
+	CMSWriter(std::string scene_name);
 
-	std::string read_block(const std::string& str, char open_delim, char close_delim);
+	~CMSWriter();
 
-	size_t find_at_scope(const std::string& str, char c, size_t offset = 0);
+	void open_key(std::string name);
 
-	std::vector<float> read_floats(const std::string& block);
+	void close_key();
 
-	class Writer
-	{
-	public:
+	void add_value(std::string val);
 
-		Writer(std::string scene_name);
+	void add_vec(const glm::vec2& vec);
 
-		~Writer();
+private:
+	std::ofstream file;
+	std::stack<int> depth_tracker;
+	void add_data(std::string data);
+};
+class CMSReader
+{
 
-		void add_comma_if_needed();
-
-		void open_key(std::string name);
-
-		void close_key();
-
-		void add_value(std::string val);
-
-		void add_vec(const glm::vec2& vec);
-
-	private:
-		std::ofstream file;
-		std::stack<int> depth_tracker;
-	};
-}
+public:
+	CMSReader(std::string name);
+	~CMSReader();
+	bool has_next_key();
+	std::string open_key();
+	void close_key();
+	bool has_next_value();
+	std::string next_value();
+private:
+	std::ifstream file;
+	std::stack<int> level_tracker;
+	bool find(char c);
+	//void find_at_current_level(char c);
+};

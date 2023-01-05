@@ -6,6 +6,8 @@
 #include <glm/vec4.hpp>
 #include <memory>
 #include <functional>
+#include <stack>
+#include <set>
 
 // Certain styling features only make sense for rects or rects and curves so that should be its own class
 // And Ishould utilize multiple inheritance otherwise were wasting space.
@@ -43,19 +45,33 @@ namespace qgl
 
     inline float view_scale = 1;
 
-    namespace Mouse
+    class Mouse
     {
-        inline vec pos;
-        inline vec delta;
-        inline bool moving;
-        inline int scroll;
-        bool is_down(int button = 0);
+    public:
+        typedef void (*MouseCallbackPtr)();
 
-        typedef std::function<void()> MouseCallback;
+        static inline vec pos;
+        static inline vec delta;
+        static inline int scroll_dir;
+        static inline std::list<MouseCallbackPtr> move, press, release, scroll;
 
-        // We will later make these inaccessible outside the source file
-        // and create methods to add and remove
-        inline std::vector<MouseCallback> move, press, release, scroll;
+        static bool is_down(int button = 0);
+        static void remove_this_callback();
+        static void remove_callback(std::list<MouseCallbackPtr>& cbl, MouseCallbackPtr cb);
+        static void process_mouse_events();
+
+    private:
+        static inline bool remove_flag;
+
+        struct cb_pair_comp
+        {
+            bool operator()(const std::pair<std::list<MouseCallbackPtr>*, MouseCallbackPtr>& a,
+                const std::pair<std::list<MouseCallbackPtr>*, MouseCallbackPtr>& b) const
+            {
+                return std::less<MouseCallbackPtr>()(a.second, b.second);
+            }
+        };
+        static inline std::set<std::pair<std::list<MouseCallbackPtr>*, MouseCallbackPtr>, cb_pair_comp> callbacks_to_remove;
     };
 
     class Element
@@ -165,24 +181,6 @@ namespace qgl
         virtual void draw();
 
     };
-    
-    //class TowMouse
-    //{
-    //public:
-    //    void begin(Element* t_element, std::function<bool()> t_end_condition_fn);
-
-    //    void reset();
-
-    //    void update();
-
-    //private:
-    //    bool active = false;
-    //    Element* element_ptr = nullptr;
-    //    vec delta = vec(0);
-    //    std::function<bool()> end_condition_fn = nullptr;
-    //};
-
-   // void follow_mouse(Element* element, std::function<bool()> stop_condition_fn = nullptr);
 
     vec screen_to_world_scale(const vec& v);
     vec world_to_screen_scale(const vec& v);
@@ -197,5 +195,4 @@ namespace qgl
     vec world_center();
 
 }
-// everything can draw over everything, except well scissor the scene view.
 
