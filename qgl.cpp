@@ -6,35 +6,48 @@
 #include "draw.h"
 #include <glfw/glfw3.h>
 #include "qgl.h"
-
-
-
+#include <set>
 
 namespace qgl
 {
-    class GodElement : public Element
+     
+    RootElement root_elem;
+
+    void init()
     {
-    public:
-        GodElement()
-        {
+        draw::init(640, 480);
+    }
 
-        }
-    };
+    bool is_running()
+    {
+        return draw::is_running();
+    }
 
-    GodElement GOD_ELEMENT;
+    void on_frame()
+    {
+        draw::begin_frame();
 
-    Element& head_element = GOD_ELEMENT.add_child<Element>();
+        Keyboard::process_events();
+        Mouse::process_mouse_events();
+
+        root_elem.draw();
+       
+        draw::end_frame();
+    }
+
+    void terminate()
+    {
+        draw::terminate();
+    }
+
+    void set_world_center(const vec& pos)
+    {
+        root_elem.set_pos(pos);
+    }
 
     vec world_center()
     {
-        return head_element.pos();
-    }
-
-    //TowMouse tow_mouse;
-
-    bool has_parent(const Element& element)
-    {
-        return element.parent != nullptr;
+        return root_elem.pos();
     }
 
     vec screen_to_world_scale(const vec& v)
@@ -49,12 +62,12 @@ namespace qgl
 
     vec screen_to_world_projection(const vec& v)
     {
-        return screen_to_world_scale(v - draw::viewport_size() * 0.5f) + head_element.pos();
+        return screen_to_world_scale(v - draw::viewport_size() * 0.5f) + root_elem.pos();
     }
 
     vec world_to_screen_projection(const vec& v)
     {
-        return world_to_screen_scale(v-head_element.pos()) + draw::viewport_size() * 0.5f;
+        return world_to_screen_scale(v-root_elem.pos()) + draw::viewport_size() * 0.5f;
     }
 
     bool contains(const vec& value, const vec& min, const vec& max)
@@ -62,50 +75,39 @@ namespace qgl
         return value.x >= min.x && value.y >= min.y && value.x <= max.x && value.y <= max.y;
     }
 
-    Element::Element()
-    {
-
-    }
-
-    Element::Element(const Element& elem)
-    {
-
-    }
-
-    Shape::Shape()
+    RootElement::RootElement()
     {
     }
-    Shape::Shape(const Shape& sh)
-    {
 
+    RootElement::~RootElement()
+    {
     }
-    Curve::Curve(const Curve& curve)
-    {
 
+    void IElement::draw()
+    {
+        if (child_storage.size())
+        {
+            for (IElement* cep : child_storage)
+            {
+                cep->draw();
+            }
+        }
     }
-    TextBox::TextBox()
-    {
 
+    vec IElement::pos()
+    {
+        return m_pos;
     }
-    TextBox::TextBox(const TextBox& tb)
-    {
 
+    void IElement::set_pos(const vec& v)
+    {
+        m_pos = v;
     }
 
     void Element::clip_children(bool flag)
     {
         options[OCCLUDE_CHILDREN] = flag;
     }
-
-    //void Element::on_press(CallbackFn cf)
-    //{
-    //    pressed = cf;
-    //}
-
-    //void Element::on_drag(CallbackFn cf)
-    //{
-    //    dragged = cf;
-    //}
 
     vec Element::size()
     {
@@ -127,12 +129,15 @@ namespace qgl
     {
         vec ret = options[WORLD] ? world_to_screen_scale(m_pos) : m_pos;
 
-        Element* parent_ptr = parent;
-        while (parent_ptr != nullptr)
+        IElement* curr_parent_ptr = parent_ptr;
+        while (curr_parent_ptr != &root_elem)
         {
-            ret += parent_ptr ? world_to_screen_scale(parent_ptr->m_pos) : parent_ptr->m_pos;
-            parent_ptr = parent_ptr->parent;
+            Element& curr_parent = *static_cast<Element*>(curr_parent_ptr);
+            ret += curr_parent.options[WORLD] ? world_to_screen_scale(curr_parent.m_pos) : curr_parent.m_pos;
+            parent_ptr = curr_parent.parent_ptr;
         }
+
+        ret += root_elem.pos();
 
         return ret;
     }
@@ -146,13 +151,12 @@ namespace qgl
     {
         if (child_storage.size())
         {
-
             if (options[OCCLUDE_CHILDREN])
             {
                 draw::scissor(pos(), size());
             }
 
-            for (ElementPtr& cep : child_storage)
+            for (IElement* cep : child_storage)
             {
                 cep->draw();
             }
@@ -160,208 +164,125 @@ namespace qgl
             draw::stop_scissor();
         }
     }
- 
-    bool Mouse::is_down(int button)
+
+    Element::Element()
     {
-        return draw::is_mouse_down(button);
+        root_elem.child_storage.push_back(this);
     }
 
-    void init()
+    Element::Element(const Element& elem)
     {
-        draw::init(640, 480);
+        operator=(elem);
     }
 
-    /*
-    void follow_mouse(Element* element, std::function<bool()> stop_condition_fn)
+    Element& Element::operator=(const Element& elem)
     {
-        tow_Mouse::begin(element, stop_condition_fn);
+        elem.parent_ptr->child_storage.push_back(this);
+        parent_ptr = elem.parent_ptr;
+        std::memcpy(options, elem.options, 2);
+        fill = elem.fill;
+        outline = elem.outline;
+        shadow = elem.shadow;
+        outline_thickness = elem.outline_thickness;
+        shadow_sharpness = elem.shadow_sharpness;
+        shadow_offset = elem.shadow_offset;
+        m_size = elem.m_size;
+        m_pos = elem.m_pos;
     }
 
-   
-    void TowMouse::begin(Element* element, std::function<bool()> t_end_condition_fn)
+    Element::Element(IElement* t_parent_ptr)
     {
-        active = true;
-        element_ptr = element;
-        end_condition_fn = t_end_condition_fn;
-
-        if (element_ptr->options[Element::WORLD])
-            delta = element->m_pos - screen_to_world_projection(draw::get_mouse_pos());
-        else
-            delta = element->m_pos - draw::get_mouse_pos();
+        parent_ptr = t_parent_ptr;
+        parent_ptr->child_storage.push_back(this);
     }
 
-    void TowMouse::reset()
+    void Element::move_to_parent(IElement* t_parent_ptr)
     {
-        active = false;
-        element_ptr = nullptr;
-        end_condition_fn = nullptr; // even tho it already should be 
+        parent_ptr->child_storage.erase(std::remove(child_storage.begin(), child_storage.end(), this), child_storage.end());
+        t_parent_ptr->child_storage.push_back(this);
+        parent_ptr = t_parent_ptr;
     }
-    void TowMouse::update()
+
+    Element::~Element()
     {
-        // if true, the block assumes dragged_pos != nullptr
-        if (active)
+        parent_ptr->child_storage.erase(std::remove(parent_ptr->child_storage.begin(), parent_ptr->child_storage.end(), this), parent_ptr->child_storage.end());
+        for (auto* child_ptr : child_storage)
         {
-#ifdef QGL_DEBUG
-            if (element_ptr == nullptr)
-            {
-                std::cout << "QGL_DEBUG: TowMouse::element_ptr is null. If calling TowMouse::update() for the first time or after callign TowMouse::reset(), you must first call TowMouse::begin()\n";
-                return;
-            }
-#endif      
-            if (end_condition_fn())
-            {
-                TowMouse::reset();
-            }
-            else
-            {
-                if (element_ptr->options[Element::WORLD])
-                    element_ptr->m_pos = screen_to_world_projection(draw::get_mouse_pos()) + delta;
-                else
-                    element_ptr->m_pos = draw::get_mouse_pos() + delta;
-            }
+            static_cast<Element*>(child_ptr)->move_to_parent(&root_elem);
         }
-    } */
-
-
-    void Mouse::remove_this_callback()
-    {
-        remove_flag = true;
     }
 
-    void Mouse::remove_callback(std::list<MouseCallbackPtr>& cbl, MouseCallbackPtr cb)
+    Element* Element::parent()
     {
-        callbacks_to_remove.insert(std::pair(&cbl, cb));
-    }
-
-    void Mouse::process_mouse_events()
-    {
-        pos = draw::get_mouse_pos();
-        scroll_dir = draw::get_mouse_scroll();
-        delta = draw::get_mouse_delta();
-
-        auto call_list = [&](std::list<MouseCallbackPtr> cbl)
+        if (parent_ptr == static_cast<IElement*>(&root_elem))
         {
-            for (auto& cb : cbl)
-            {
-                cb();
-                if (remove_flag)
-                {
-                    callbacks_to_remove.insert(std::pair(&cbl, cb));
-                    remove_flag = false;
-                }
-            }
-        };
-
-        // Note the qualifiers on the for each vars
-        if (draw::is_mouse_moving())
-            call_list(move);
-        
-        if (draw::is_mouse_pressed(draw::MOUSE_LEFT) ||
-            draw::is_mouse_pressed(draw::MOUSE_MIDDLE) ||
-            draw::is_mouse_pressed(draw::MOUSE_RIGHT))
-
-            call_list(press);
-
-        if (draw::is_mouse_released(draw::MOUSE_LEFT) ||
-            draw::is_mouse_released(draw::MOUSE_MIDDLE) ||
-            draw::is_mouse_released(draw::MOUSE_RIGHT))
-            call_list(release);
-
-        if (draw::get_mouse_scroll())
-            call_list(scroll);
-
-        for (auto& cbp : callbacks_to_remove)
-        {
-            cbp.first->erase(std::find(cbp.first->begin(), cbp.first->end(), cbp.second));
+            return nullptr; // For now I don't want the end user having access to the root element.
         }
 
-        callbacks_to_remove.clear();
-    }
-    /*
-    bool Element::process_mouse_events()
-    {
-        // We draw one branch at a time in forward order, parent first
-        // So we'll have to go the opposite direction
-
-        for (auto it = child_storage.rbegin(); it != child_storage.rend(); ++it)
-        {
-            if ((*it)->process_mouse_events())
-            {
-                // The the first, deepest element we iterate through that has mouse listening enabled is the only element that receives mouse events.
-                return true;
-            }
-        }
-
-        // If the element we're looking at doesn't care about the mouse, we continue looking down the branch.
-        // For instance if a moveable object has a non-interactive label, we still want to move the object even if we click on the label.
-        if (!options[Element::MOUSE_LISTENER])
-            return false;
-
-        vec screen_pos = get_screen_pos(this);
-        vec screen_dim = m_size;
-        if (options[Element::WORLD]) screen_dim *= view_scale;
-        vec mouse_pos = draw::get_mouse_pos();
-
-        if (contains(mouse_pos, screen_pos, screen_pos + screen_dim))
-        {
-            if (hovered != nullptr)
-                hovered(this);
-
-            if (pressed != nullptr && draw::is_mouse_pressed())
-            {
-                pressed(this);
-            }
-
-            if (draw::is_mouse_down() && draw::is_mouse_moving())
-            {
-                if (dragged != nullptr)
-                    dragged(this);
-            }
-
-            return true;
-        }
-
-        return false;
-    }*/
-    void on_frame()
-    {
-        draw::begin_frame();
-
-        /*
-        const float zoom_fac = 0.1f;
-        view_scale *= 1 + zoom_fac * draw::get_mouse_scroll();
-
-        if (draw::is_mouse_down(draw::MOUSE_MIDDLE) && draw::is_mouse_moving())
-        {
-            head_element.m_pos += draw::get_mouse_delta();
-        }*/
-
-        // Processes mouse events for all mouse listeners.
-        Mouse::process_mouse_events();
-
-        
-
-        //tow_Mouse::update();
-
-        head_element.draw();
-
-        draw::end_frame();
+        return static_cast<Element*>(parent_ptr);
     }
 
-    void set_world_center(const vec& pos)
+    Curve::Curve():Element()
     {
-        head_element.set_pos(pos);
+    }
+    Curve::Curve(IElement* parent):Element(parent)
+    {
+    }
+    Curve::Curve(const Curve& curve)
+    {
+        operator=(curve);
+    }
+    Curve& Curve::operator=(const Curve& curve)
+    {
+        Element::operator=(curve);
+        points = curve.points;
+        return *this;
+    }
+    void Curve::draw()
+    {
+        draw::draw_curve(points);
     }
 
-    void terminate()
+    Shape::Shape():Element()
     {
-        draw::terminate();
     }
-    bool is_running()
+    Shape::Shape(IElement* parent) :Element(parent)
     {
-        return draw::is_running();
     }
-    void TextBox::set_text(const std::string& str)
+    Shape::Shape(const Shape& shape)
+    {
+        operator=(shape);
+    }
+    Shape& Shape::operator=(const Shape& shape)
+    {
+        Element::operator=(shape);
+        corner_radius = shape.corner_radius;
+        return *this;
+    }
+
+    TextBox::TextBox() :Element()
+    {
+    }
+    TextBox::TextBox(IElement* parent) :Element(parent)
+    {
+    }
+    TextBox::TextBox(const TextBox& textbox)
+    {
+        operator=(textbox);
+    }
+
+    TextBox& TextBox::operator=(const TextBox& textbox)
+    {   
+        Element::operator=(textbox);
+
+        text = textbox.text;
+        lines = textbox.lines;
+        text_scale = textbox.text_scale;
+
+        return *this;
+    }
+
+    void TextBox::set_text(std::string str)
     {
         text = str;
         calculate_wrap();
@@ -384,19 +305,7 @@ namespace qgl
             cursor.y += draw::get_text_size("").y;
         }
 
-        if (child_storage.size())
-        {
-            if (options[OCCLUDE_CHILDREN])
-            {
-                draw::scissor(pos(), size());
-            }
-
-            for (ElementPtr& cep : child_storage)
-            {
-                cep->draw();
-            }
-        }
-        draw::stop_scissor();
+        Element::draw();
     }
 
     void TextBox::set_size(const vec& s)
@@ -413,11 +322,11 @@ namespace qgl
 
     void TextBox::calculate_wrap()
     {
-        lines.clear();        
+        lines.clear();
 
         draw::set_text_scale(text_scale);
 
-        int max_lines = std::ceilf(m_size.y / (draw::get_text_size("").y*text_scale));
+        int max_lines = std::ceilf(m_size.y / (draw::get_text_size("").y * text_scale));
         std::string line = "";
         float line_width = 0;
         int token_start = 0;
@@ -471,6 +380,15 @@ namespace qgl
         }
     }
 
+    std::string TextBox::get_text()
+    {
+        return text;
+    }
+
+    Shape::Shape(const Shape& shape)
+    {
+    }
+
     void Shape::draw()
     {
         draw::apply_mask(false);
@@ -481,14 +399,12 @@ namespace qgl
 
         vec spos = pos();
 
-        // All the shader access should be setters.
         draw::shape_corner(scale * corner_radius);
 
         draw::shape_color(fill.top, fill.bottom);
 
         draw::draw_rect(pos(), m_size * scale);
 
-        // Draw outline
         if (outline_thickness > 0)
         {
             if (outline_thickness * scale < 1 && options[WORLD] || outline_thickness < 1)
@@ -505,40 +421,106 @@ namespace qgl
                 draw::shape_corner(scale * (corner_radius + outline_thickness));
             }
 
-            // We should set the alpha to scale
-            // so that outlines fade away as they become thinner than a pixel.
-
-            draw::draw_rect(pos() - outline_thickness * scale, size() + scale * outline_thickness * 2.0f * glm::sign(size()));
-        } // End draw outline
-
-        if (child_storage.size())
-        {
-            if (options[OCCLUDE_CHILDREN])
-            {
-                draw::scissor(pos(), size());
-            }
-
-            for (ElementPtr& cep : child_storage)
-            {
-                cep->draw();
-            }
-
-            draw::stop_scissor();
+            draw::draw_rect(pos() - outline_thickness * scale, size() + scale * outline_thickness * 2.0f);
         }
+
+        Element::draw();
     }
 
-    Curve::Curve()
+    bool Mouse::is_down(int button)
     {
+        return draw::is_mouse_down(button);
     }
 
-    void Curve::draw()
+    void Mouse::remove_callback(CallbackList& cbl, CallbackPtr cb)
     {
-        draw::draw_curve(points);
+        callbacks_to_remove.insert(std::pair(&cbl, cb));
     }
 
-    std::string TextBox::get_text()
+    void Mouse::process_mouse_events()
     {
-        return text;
+        pos = draw::get_mouse_pos();
+        scroll_dir = draw::get_mouse_scroll();
+        delta = draw::get_mouse_delta();
+
+        auto call_list = [&](CallbackList cbl)
+        {
+            for (CallbackPtr cb : cbl)
+            {
+                cb();
+            }
+        };
+
+        // Note the qualifiers on the for each vars
+        if (draw::is_mouse_moving())
+            call_list(move);
+        
+        if (draw::is_mouse_pressed(draw::MOUSE_LEFT) ||
+            draw::is_mouse_pressed(draw::MOUSE_MIDDLE) ||
+            draw::is_mouse_pressed(draw::MOUSE_RIGHT))
+            call_list(press);
+
+        if (draw::is_mouse_released(draw::MOUSE_LEFT) ||
+            draw::is_mouse_released(draw::MOUSE_MIDDLE) ||
+            draw::is_mouse_released(draw::MOUSE_RIGHT))
+            call_list(release);
+
+        if (draw::get_mouse_scroll())
+            call_list(scroll);
+
+        for (auto& cbp : callbacks_to_remove)
+        {
+            cbp.first->remove(cbp.second);
+        }
+
+        callbacks_to_remove.clear();
+    }
+
+    bool Keyboard::matches(const std::set<int>& keys)
+    {
+        // Check if the sets have different sizes
+        if (draw::get_down_keys().size() != keys.size()) {
+            return false;
+        }
+
+        // Iterate through the elements in set1 and check if they are all in set2
+        for (int x : keys) {
+            if (draw::get_down_keys().count(x) == 0) {
+                return false;
+            }
+        }
+
+        // If the loop completes, all the elements in set1 were found in set2
+        return true;
+        
+    }
+
+    void Keyboard::process_events()
+    {
+        if (draw::key_change_flag)
+        {
+            for (auto& cbp : callbacks)
+                cbp();
+        }
+        for (auto& cbp : callbacks_to_remove)
+        {
+            auto it = std::find(callbacks.begin(), callbacks.end(), cbp);
+            if (it != callbacks.end()) {
+                callbacks.erase(it);
+            }
+        }
+
+        callbacks_to_remove.clear();
+    }
+
+    void Keyboard::add_callback(CallbackPtr ptr)
+    {
+        callbacks.insert(ptr);
+    }
+
+    void Keyboard::remove_callback(CallbackPtr ptr)
+    {
+        callbacks_to_remove.insert(ptr);
     }
 }
 

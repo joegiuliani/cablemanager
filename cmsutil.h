@@ -42,5 +42,4 @@ private:
 	std::ifstream file;
 	std::stack<int> level_tracker;
 	bool find(char c);
-	//void find_at_current_level(char c);
 };

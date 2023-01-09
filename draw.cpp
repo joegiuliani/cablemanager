@@ -317,6 +317,8 @@ namespace draw
 
     void end_frame()
     {
+        key_change_flag = false;
+
         glfwSwapBuffers(window);
         glClearColor(0.15f, 0.15f, 0.155f, 1.0f);
 
@@ -566,11 +568,11 @@ namespace draw
     {
         return glm::vec2(get_text_width(str), get_text_height());
     }
-}
 
-std::set<int> get_down_keys()
-{
-    return down_keys;
+    std::set<int>& get_down_keys()
+    {
+        return down_keys;
+    }
 }
 
 glm::vec2 normal(const glm::vec2& v)
@@ -640,4 +642,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     {
         down_keys.erase(key);
     }
+    draw::key_change_flag = true;
 }
+

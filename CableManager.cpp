@@ -63,24 +63,25 @@ Scene& active_scene()
 
 class MoveNode : public Command
 {
-	std::reference_wrapper<Node> node;
+	Node* node_ptr = nullptr;
 	qgl::vec last_pos_world; // We store the previous position in world since the camera center may have changed before undoing.
 	qgl::vec new_pos;
 public:
-	MoveNode(Node& n, qgl::vec pos) :node(n)
+	MoveNode(Node& n, qgl::vec pos)
 	{
-		last_pos_world = qgl::screen_to_world_projection(n.pane().pos());
+		last_pos_world = qgl::screen_to_world_projection(n.pane.pos());
 		new_pos = pos;
+		node_ptr = &n;
 	}
 
 	virtual void execute()
 	{
-		node.get().pane().set_pos(new_pos);
+		node_ptr->pane.set_pos(new_pos);
 	}
 
 	virtual void reverse()
 	{
-		node.get().pane().set_pos(qgl::world_to_screen_projection(last_pos_world));
+		node_ptr->pane.set_pos(qgl::world_to_screen_projection(last_pos_world));
 	}
 };
 
@@ -98,21 +99,15 @@ public:
 
 	virtual void execute()
 	{
-		auto pred = [&](const Node& n) -> bool
-		{
-			return &n == node_ptr;
-		};
-		active_scene().nodes.remove_if(pred);
+		active_scene().remove_node(*node_ptr);
 		node_ptr = nullptr;
 	}
 
 	virtual void reverse()
 	{
-		active_scene().nodes.push_back(node_state);
-		node_ptr = &active_scene().nodes.back();
+		node_ptr = &active_scene().add_node(node_state);
 	}
 };
-
 
 bool inside_rectangle(const glm::vec2& v, const glm::vec2& lower_bound, const glm::vec2& upper_bound) {
 	return (v.x >= lower_bound.x && v.x <= upper_bound.x && v.y >= lower_bound.y && v.y <= upper_bound.y);
@@ -130,51 +125,42 @@ std::function<bool(const std::function<T>&)> lambda_equal_pred(const std::functi
 Scene s;
 CommandManager cm;
 
-
-
 void node_move_callback()
 {
-	s.nodes.back().pane().set_pos(qgl::Mouse::pos);
+	s.active_node().pane.set_pos(qgl::Mouse::pos);
 }
 
 void node_release_callback()
 {
-	cm.add_command(MoveNode(s.nodes.back(), qgl::Mouse::pos));
+	cm.add_command(MoveNode(s.active_node(), qgl::Mouse::pos));
 
-	qgl::Mouse::remove_this_callback();
-	qgl::Mouse::remove_callback(qgl::Mouse::move, node_move_callback);		
-	
-	//qgl::Mouse::release.erase(std::remove(qgl::Mouse::move.begin(), qgl::Mouse::move.end(), node_release_callback), qgl::Mouse::release.end());
+	qgl::Mouse::remove_callback(qgl::Mouse::release, node_release_callback);
+	qgl::Mouse::remove_callback(qgl::Mouse::move, node_move_callback);
 }
 
 void node_press_callback()
 {
-	if (inside_rectangle(qgl::Mouse::pos, s.nodes.back().pane().pos(), s.nodes.back().pane().pos() + s.nodes.back().pane().size()))
+	s.foreach([&](Node& n)
+		{
+			if (inside_rectangle(qgl::Mouse::pos, n.pane.pos(), n.pane.pos() + n.pane.size()))
+			{
+				s.set_active_node(n);
+				qgl::Mouse::move.push_back(node_move_callback);
+				qgl::Mouse::release.push_back(node_release_callback);
+			}
+		});
+}
+
+// Given the context we will push and pull this from the callback list
+// For instance, there is no popup, at least one node selected, etc
+void node_delete_callback()
+{
+	if (qgl::Keyboard::matches(std::set<int> {draw::KEY_DELETE}))
 	{
-		qgl::Mouse::move.push_back(node_move_callback);
-		qgl::Mouse::release.push_back(node_release_callback);
+		cm.add_command(DeleteNode(s.active_node()));
 	}
 }
-/*
-typedef void (*fn_ptr)();
-std::vector<fn_ptr> fns;
 
-void foo()
-{
-
-	fns.erase(std::remove(fns.begin(), fns.end(), foo), fns.end());
-
-}
-
-int main()
-{
-	fns.push_back(foo);
-
-	foo();
-
-	return 0;
-}
-*/
 int main()
 {
 	active_scene_ptr = &s;
@@ -184,7 +170,7 @@ int main()
 	// Then we can specify for each draw how many of those vertices were actually going to use
 
 	//Node node("Hello");
-
+	/*
 	glm::vec2 in(20, 20);
 	glm::vec2 magnet(200, 400);
 	glm::vec2 out(400, 200);
@@ -197,14 +183,19 @@ int main()
 	};
 
 	glm::vec2 pre_magnet = clamp_pos(magnet, in, k);
-	glm::vec2 post_magnet = clamp_pos(magnet, out, k);
+	glm::vec2 post_magnet = clamp_pos(magnet, out, k);*/
 
 
 	s.load("first_scene.cms");
 
+
+	qgl::Keyboard::add_callback(CommandManager::process_key_events);
+
 	qgl::Mouse::press.push_back(
 		node_press_callback
 	);
+
+	qgl::Keyboard::add_callback(node_delete_callback);
 
 	// At some point i want to split classes like Node and Port into two separate structs - the gui and the actual data. 
 
@@ -231,7 +222,6 @@ int main()
 	text_box.set_text_scale(24);*/
 
 	glm::vec2 v1 = qgl::screen_to_world_projection(qgl::world_to_screen_projection(glm::vec2(0)));
-
     while (qgl::is_running())
     {
         qgl::on_frame();

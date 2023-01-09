@@ -14,7 +14,7 @@ class CommandManager
 {
 public:
 	template<typename T>
-	void add_command(T command)
+	static void add_command(T command)
 	{
 		clear_stack(available_redos);
 
@@ -22,14 +22,14 @@ public:
 		available_undos.top()->execute();
 	}
 
+	static void undo();
+	static void redo();
 
-	void undo();
+	static void process_key_events();
 
-	void redo();
 private:
 	typedef std::stack<std::shared_ptr<Command>> command_stack;
-	command_stack available_undos;
-	command_stack available_redos;
-	void clear_stack(command_stack& s);
-
+	static inline command_stack available_undos;
+	static inline command_stack available_redos;
+	static void clear_stack(command_stack& s);
 };

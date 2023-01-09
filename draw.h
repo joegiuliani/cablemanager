@@ -2,6 +2,7 @@
 #include "shader.h"
 #include <functional>
 #include <GLFW/glfw3.h>
+#include <set>
 
 namespace draw
 {
@@ -162,6 +163,8 @@ namespace draw
 	constexpr int MOUSE_UP = GLFW_RELEASE;
 	constexpr int MOUSE_DOWN = GLFW_PRESS;
 
+	inline bool key_change_flag = false;
+
 	bool is_mouse_up(int button = MOUSE_LEFT);
 	bool is_mouse_down(int button = MOUSE_LEFT);
 	bool is_mouse_pressed(int button = MOUSE_LEFT);
@@ -171,6 +174,7 @@ namespace draw
 	glm::vec2 get_mouse_pos();
 	int get_mouse_scroll();
 	const glm::vec2& viewport_size();
+	std::set<int>& get_down_keys();
 
 }
 

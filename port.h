@@ -17,8 +17,5 @@ public:
 
 	void sever_connection();
 	void connection_severed();
-	qgl::Shape& pane();
-
-private:
-	std::reference_wrapper<qgl::Shape> m_pane = qgl::head_element.add_child<qgl::Shape>();
+	qgl::Shape pane;
 };
