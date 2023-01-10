@@ -8,9 +8,10 @@
 #include "qgl.h"
 #include <set>
 
+using namespace cm;
+
 namespace qgl
 {
-     
     RootElement root_elem;
     bool end_of_program = false;
 

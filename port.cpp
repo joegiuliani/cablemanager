@@ -28,11 +28,11 @@ void yield_id(unsigned long int id)
 Port::Port()
 {
 	id = borrow_id();
-	pane.fill.top = pane.fill.bottom = qgl::color(1);
-	pane.outline.top = pane.outline.bottom = qgl::color(0, 0, 0, 1);
+	pane.fill.top = pane.fill.bottom = cm::color(1);
+	pane.outline.top = pane.outline.bottom = cm::color(0, 0, 0, 1);
 	pane.outline_thickness = 1.5;
 	pane.corner_radius = 4;
-	pane.set_size(qgl::vec(8));
+	pane.set_size(cm::vec(8));
 }
 
 Port::Port(const Port& p)

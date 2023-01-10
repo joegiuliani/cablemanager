@@ -10,9 +10,12 @@
 #include "scene.h"
 #include "node.h"
 #include "comman.h"
+#include "ui.h"
 #include <cassert>
 
-glm::vec2 quadratic_bezier(float t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+using namespace cm;
+
+vec quadratic_bezier(float t, const vec& a, const vec& b, const vec& c)
 {
 	float t1 = 1 - t;
 	return t1 * (t1 * a + t * b) + t * (t1 * b + t * c);
@@ -64,10 +67,10 @@ Scene& active_scene()
 class MoveNode : public Command
 {
 	Node* node_ptr = nullptr;
-	qgl::vec last_pos_world;
-	qgl::vec new_pos;
+	vec last_pos_world;
+	vec new_pos;
 public:
-	MoveNode(Node& n, qgl::vec pos)
+	MoveNode(Node& n, vec pos)
 	{
 		last_pos_world = qgl::screen_to_world_projection(pos);
 		new_pos = qgl::screen_to_world_projection(n.pane.pos());
@@ -115,10 +118,35 @@ bool inside_rectangle(const glm::vec2& v, const glm::vec2& lower_bound, const gl
 }
 
 Scene s;
-CommandManager cm;
+CommandManager comman;
 
-qgl::vec node_move_sep;
-qgl::vec node_move_start;
+vec node_move_sep;
+vec node_move_start;
+
+enum class Context
+{
+	Scene,
+	Popup
+};
+
+Context curr_context = Context::Scene;
+
+Node* node_under_mouse()
+{
+	if (curr_context == Context::Scene)
+	{
+		s.foreach([&](Node& n)
+			{
+				if (inside_rectangle(qgl::Mouse::pos, n.pane.pos(), n.pane.pos() + n.pane.size()))
+				{
+					return &n;
+				}
+			});
+	}
+
+	return nullptr;
+}
+
 void node_move_callback()
 {
 	s.active_node().pane.set_pos(qgl::Mouse::pos + node_move_sep);
@@ -126,26 +154,39 @@ void node_move_callback()
 
 void node_release_callback()
 {
-	cm.add_command(MoveNode(s.active_node(), node_move_start));
+	comman.add_command(MoveNode(s.active_node(), node_move_start));
 
 	qgl::Mouse::remove_callback(qgl::Mouse::release, node_release_callback);
 	qgl::Mouse::remove_callback(qgl::Mouse::move, node_move_callback);
 }
 
+void popup_move_callback()
+{
+
+}
+
 void node_press_callback()
 {
-	s.foreach([&](Node& n)
-		{
-			if (inside_rectangle(qgl::Mouse::pos, n.pane.pos(), n.pane.pos() + n.pane.size()))
-			{
-				s.set_active_node(n); // change this when implementing selection
-				node_move_start = n.pane.pos();
-				node_move_sep = n.pane.pos() - qgl::Mouse::pos;
-				qgl::Mouse::move.push_back(node_move_callback);
-				qgl::Mouse::release.push_back(node_release_callback);
-			}
-		});
+	Node* node_ptr = node_under_mouse();
+	if (node_ptr == nullptr) return;
+	Node& node = *node_ptr;
+
+	if (curr_context == Context::Scene && draw::is_mouse_down(draw::MOUSE_LEFT))
+	{
+		s.set_active_node(node); // change this when implementing selection
+		node_move_start = node.pane.pos();
+		node_move_sep = node.pane.pos() - qgl::Mouse::pos;
+		qgl::Mouse::move.push_back(node_move_callback);
+		qgl::Mouse::release.push_back(node_release_callback);
+	}
+
+	// If we have a callback in move, then we might be dragging a node around or a port connection.
+	if (qgl::Mouse::move.size() == 0 && draw::is_mouse_down(draw::MOUSE_RIGHT))
+	{
+		curr_context = Context::Popup;
+	}
 }
+
 
 // Given the context we will push and pull this from the callback list
 // For instance, there is no popup, at least one node selected, etc
@@ -153,7 +194,7 @@ void node_delete_callback()
 {
 	if (qgl::Keyboard::matches(std::set<int> {draw::KEY_DELETE}))
 	{
-		cm.add_command(DeleteNode(s.active_node()));
+		comman.add_command(DeleteNode(s.active_node()));
 	}
 }
 

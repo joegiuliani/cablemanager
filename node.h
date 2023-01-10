@@ -13,6 +13,8 @@ public:
 	Node(const Node& node);
 	Node& operator=(const Node& node);
 
+	Port& add_input();
+
 	qgl::Shape pane;
 	qgl::TextBox label;
 };
