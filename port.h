@@ -17,5 +17,11 @@ public:
 
 	void sever_connection();
 	void connection_severed();
+
+	void swap_id(Port& p)
+	{
+		std::swap(id, p.id);
+	}
+
 	qgl::Shape pane;
 };

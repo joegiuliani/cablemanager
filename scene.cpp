@@ -26,20 +26,20 @@ void Scene::load(std::string file_path)
 		reader.open_key();
 
 			reader.open_key();
-				node.label().set_text(reader.next_value());
+				node.label.set_text(reader.next_value());
 			reader.close_key();
 
 			reader.open_key();
-				node.pane().set_pos(qgl::world_to_screen_scale(glm::vec2(std::stof(reader.next_value()), std::stof(reader.next_value()))));
+				node.pane.set_pos(qgl::world_to_screen_scale(glm::vec2(std::stof(reader.next_value()), std::stof(reader.next_value()))));
 			reader.close_key();
 
 			reader.open_key();
-				node.pane().set_size(qgl::world_to_screen_scale(glm::vec2(std::stof(reader.next_value()), std::stof(reader.next_value()))));
+				node.pane.set_size(qgl::world_to_screen_scale(glm::vec2(std::stof(reader.next_value()), std::stof(reader.next_value()))));
 			reader.close_key();
 
 		reader.close_key();
 
-		nodes.push_back(std::make_unique<Node>(Node(node)));
+		nodes.push_back(std::make_unique<Node>(node));
 	}
 }
 
@@ -67,17 +67,17 @@ void Scene::save_as(std::string new_name)
 		{
 			writer.open_key(NODE_NAME);
 			{
-				writer.add_value(node.label().get_text());
+				writer.add_value(node.label.get_text());
 			} writer.close_key();
 
 			writer.open_key(NODE_POS);
 			{
-				writer.add_vec(qgl::screen_to_world_scale(node.pane().pos()));
+				writer.add_vec(qgl::screen_to_world_scale(node.pane.pos()));
 			} writer.close_key();
 
 			writer.open_key(NODE_SIZE);
 			{
-				writer.add_vec(qgl::screen_to_world_scale(node.pane().size()));
+				writer.add_vec(qgl::screen_to_world_scale(node.pane.size()));
 			} writer.close_key();
 
 		} writer.close_key();

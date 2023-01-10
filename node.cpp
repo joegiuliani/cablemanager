@@ -23,8 +23,6 @@ Node::Node(const Node& node)
 	operator=(node);
 }
 
-/*
-
 Node& Node::operator=(const Node& node)
 {
 	inputs = node.inputs;
@@ -33,6 +31,7 @@ Node& Node::operator=(const Node& node)
 
 	pane = node.pane;
 	label = node.label;
-}
+	label.move_to_parent(&pane);
 
-*/
+	return *this;
+}

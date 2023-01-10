@@ -28,11 +28,11 @@ namespace qgl
         {
             top = other.top;
             bottom = other.bottom;
+
+            return *this;
         }
     };
     typedef glm::vec2 vec;
-
-    class Element;
 
     inline float view_scale = 1;
     
@@ -102,12 +102,11 @@ namespace qgl
     {
     public:
         std::vector<IElement*> child_storage;
-
-        IElement();
-        virtual void draw();
-        virtual ~IElement();
+        virtual void draw() = 0;
         virtual vec pos() = 0;
         virtual void set_pos(const vec& v) = 0;
+
+        IElement();
 
     protected:
         IElement& operator=(const IElement& elem);
@@ -118,10 +117,9 @@ namespace qgl
     class RootElement : public IElement
     {
     public:
-        RootElement();
-        ~RootElement();
         virtual vec pos();
         virtual void set_pos(const vec& v);
+        virtual void draw();
     };
 
     class Element : public IElement
@@ -151,10 +149,10 @@ namespace qgl
         virtual Element& operator=(const Element& elem);
 
         // These methods deal with pixel space
-        vec pos();
+        virtual vec pos();
         vec size();
         void set_size(const vec& v);
-        void set_pos(const vec& v);
+        virtual void set_pos(const vec& v);
 
         Element* parent();
 

@@ -64,19 +64,20 @@ Scene& active_scene()
 class MoveNode : public Command
 {
 	Node* node_ptr = nullptr;
-	qgl::vec last_pos_world; // We store the previous position in world since the camera center may have changed before undoing.
+	qgl::vec last_pos_world;
 	qgl::vec new_pos;
 public:
 	MoveNode(Node& n, qgl::vec pos)
 	{
-		last_pos_world = qgl::screen_to_world_projection(n.pane.pos());
-		new_pos = pos;
+		last_pos_world = qgl::screen_to_world_projection(pos);
+		new_pos = qgl::screen_to_world_projection(n.pane.pos());
+		n.pane.set_pos(pos); // or whatever
 		node_ptr = &n;
 	}
 
 	virtual void execute()
 	{
-		node_ptr->pane.set_pos(new_pos);
+		node_ptr->pane.set_pos(qgl::world_to_screen_projection(new_pos));
 	}
 
 	virtual void reverse()
@@ -113,26 +114,19 @@ bool inside_rectangle(const glm::vec2& v, const glm::vec2& lower_bound, const gl
 	return (v.x >= lower_bound.x && v.x <= upper_bound.x && v.y >= lower_bound.y && v.y <= upper_bound.y);
 }
 
-template <typename T>
-std::function<bool(const std::function<T>&)> lambda_equal_pred(const std::function<T>& target)
-{
-	return [&](const std::function<T>& fn) -> bool
-	{
-		return target.target<T*>() == fn.target<T*>();
-	};
-}
-
 Scene s;
 CommandManager cm;
 
+qgl::vec node_move_sep;
+qgl::vec node_move_start;
 void node_move_callback()
 {
-	s.active_node().pane.set_pos(qgl::Mouse::pos);
+	s.active_node().pane.set_pos(qgl::Mouse::pos + node_move_sep);
 }
 
 void node_release_callback()
 {
-	cm.add_command(MoveNode(s.active_node(), qgl::Mouse::pos));
+	cm.add_command(MoveNode(s.active_node(), node_move_start));
 
 	qgl::Mouse::remove_callback(qgl::Mouse::release, node_release_callback);
 	qgl::Mouse::remove_callback(qgl::Mouse::move, node_move_callback);
@@ -144,7 +138,9 @@ void node_press_callback()
 		{
 			if (inside_rectangle(qgl::Mouse::pos, n.pane.pos(), n.pane.pos() + n.pane.size()))
 			{
-				s.set_active_node(n);
+				s.set_active_node(n); // change this when implementing selection
+				node_move_start = n.pane.pos();
+				node_move_sep = n.pane.pos() - qgl::Mouse::pos;
 				qgl::Mouse::move.push_back(node_move_callback);
 				qgl::Mouse::release.push_back(node_release_callback);
 			}
@@ -231,3 +227,9 @@ int main()
 
     qgl::terminate();
 }
+
+
+// Two things might be happening
+
+// 1. When copied the label doesnt properly take pane as its parent
+// 2. pos() is broken.

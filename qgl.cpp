@@ -12,6 +12,7 @@ namespace qgl
 {
      
     RootElement root_elem;
+    bool end_of_program = false;
 
     void init()
     {
@@ -37,6 +38,7 @@ namespace qgl
 
     void terminate()
     {
+        end_of_program = true;
         draw::terminate();
     }
 
@@ -75,12 +77,27 @@ namespace qgl
         return value.x >= min.x && value.y >= min.y && value.x <= max.x && value.y <= max.y;
     }
 
-    RootElement::RootElement()
+    IElement::IElement()
     {
+
     }
 
-    RootElement::~RootElement()
+    vec RootElement::pos()
     {
+        return m_pos;
+    }
+
+    void RootElement::set_pos(const vec& pos)
+    {
+        m_pos = pos;
+    }
+
+    void RootElement::draw()
+    {
+        for (IElement* cep : child_storage)
+        {
+            cep->draw();
+        }
     }
 
     void IElement::draw()
@@ -92,16 +109,6 @@ namespace qgl
                 cep->draw();
             }
         }
-    }
-
-    vec IElement::pos()
-    {
-        return m_pos;
-    }
-
-    void IElement::set_pos(const vec& v)
-    {
-        m_pos = v;
     }
 
     void Element::clip_children(bool flag)
@@ -132,9 +139,9 @@ namespace qgl
         IElement* curr_parent_ptr = parent_ptr;
         while (curr_parent_ptr != &root_elem)
         {
-            Element& curr_parent = *static_cast<Element*>(curr_parent_ptr);
-            ret += curr_parent.options[WORLD] ? world_to_screen_scale(curr_parent.m_pos) : curr_parent.m_pos;
-            parent_ptr = curr_parent.parent_ptr;
+            Element* curr_parent = static_cast<Element*>(curr_parent_ptr);
+            ret += curr_parent->options[WORLD] ? world_to_screen_scale(curr_parent->m_pos) : curr_parent->m_pos;
+            curr_parent_ptr = curr_parent->parent_ptr;
         }
 
         ret += root_elem.pos();
@@ -168,6 +175,7 @@ namespace qgl
     Element::Element()
     {
         root_elem.child_storage.push_back(this);
+        parent_ptr = &root_elem;
     }
 
     Element::Element(const Element& elem)
@@ -188,6 +196,8 @@ namespace qgl
         shadow_offset = elem.shadow_offset;
         m_size = elem.m_size;
         m_pos = elem.m_pos;
+
+        return *this;
     }
 
     Element::Element(IElement* t_parent_ptr)
@@ -198,17 +208,20 @@ namespace qgl
 
     void Element::move_to_parent(IElement* t_parent_ptr)
     {
-        parent_ptr->child_storage.erase(std::remove(child_storage.begin(), child_storage.end(), this), child_storage.end());
+        parent_ptr->child_storage.erase(std::remove(parent_ptr->child_storage.begin(), parent_ptr->child_storage.end(), this), parent_ptr->child_storage.end());
         t_parent_ptr->child_storage.push_back(this);
         parent_ptr = t_parent_ptr;
     }
 
     Element::~Element()
     {
-        parent_ptr->child_storage.erase(std::remove(parent_ptr->child_storage.begin(), parent_ptr->child_storage.end(), this), parent_ptr->child_storage.end());
-        for (auto* child_ptr : child_storage)
+        if (!end_of_program)
         {
-            static_cast<Element*>(child_ptr)->move_to_parent(&root_elem);
+            parent_ptr->child_storage.erase(std::remove(parent_ptr->child_storage.begin(), parent_ptr->child_storage.end(), this), parent_ptr->child_storage.end());
+            for (auto* child_ptr : child_storage)
+            {
+                static_cast<Element*>(child_ptr)->move_to_parent(&root_elem);
+            }
         }
     }
 
@@ -383,10 +396,6 @@ namespace qgl
     std::string TextBox::get_text()
     {
         return text;
-    }
-
-    Shape::Shape(const Shape& shape)
-    {
     }
 
     void Shape::draw()
