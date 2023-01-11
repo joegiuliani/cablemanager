@@ -123,26 +123,21 @@ CommandManager comman;
 vec node_move_sep;
 vec node_move_start;
 
-enum class Context
+bool inside_shape(const vec& pos, qgl::Element* elem)
 {
-	Scene,
-	Popup
-};
-
-Context curr_context = Context::Scene;
+	return inside_rectangle(pos, elem->pos(), elem->pos() + elem->size());
+}
 
 Node* node_under_mouse()
 {
-	if (curr_context == Context::Scene)
-	{
-		s.foreach([&](Node& n)
+	s.foreach([&](Node& n)
+		{
+			if (inside_shape(qgl::Mouse::pos, &n.pane))
 			{
-				if (inside_rectangle(qgl::Mouse::pos, n.pane.pos(), n.pane.pos() + n.pane.size()))
-				{
-					return &n;
-				}
-			});
-	}
+				return &n;
+			}
+		});
+	
 
 	return nullptr;
 }
@@ -152,17 +147,47 @@ void node_move_callback()
 	s.active_node().pane.set_pos(qgl::Mouse::pos + node_move_sep);
 }
 
-void node_release_callback()
+void node_move_release_callback()
 {
 	comman.add_command(MoveNode(s.active_node(), node_move_start));
 
-	qgl::Mouse::remove_callback(qgl::Mouse::release, node_release_callback);
+	qgl::Mouse::remove_callback(qgl::Mouse::release, node_move_release_callback);
 	qgl::Mouse::remove_callback(qgl::Mouse::move, node_move_callback);
+
+	qgl::Mouse::press.push_back(node_press_callback);
 }
+
+std::vector<Button> node_popup;
 
 void popup_move_callback()
 {
+	for (Button& b : node_popup)
+	{
+		if (inside_shape(qgl::Mouse::pos, &b.pane))
+		{
+			b.highlight();
+		}
+	}
+}
 
+// What should happen is that upon 
+
+void popup_press_callback()
+{
+	bool inside_a_button = false;
+	for (Button& b : node_popup)
+	{
+		if (inside_shape(qgl::Mouse::pos, &b.pane))
+		{
+			inside_a_button = true; // change this to a fixed boundary once the class is created
+			b.on_click();
+		}
+	}
+
+	if (!inside_a_button) // We close the popup
+	{
+		
+	}
 }
 
 void node_press_callback()
@@ -171,22 +196,28 @@ void node_press_callback()
 	if (node_ptr == nullptr) return;
 	Node& node = *node_ptr;
 
-	if (curr_context == Context::Scene && draw::is_mouse_down(draw::MOUSE_LEFT))
+	if (draw::is_mouse_down(draw::MOUSE_LEFT))
 	{
 		s.set_active_node(node); // change this when implementing selection
 		node_move_start = node.pane.pos();
 		node_move_sep = node.pane.pos() - qgl::Mouse::pos;
 		qgl::Mouse::move.push_back(node_move_callback);
-		qgl::Mouse::release.push_back(node_release_callback);
+		qgl::Mouse::release.push_back(node_move_release_callback);
+
+		qgl::Mouse::remove_callback(qgl::Mouse::press, node_press_callback);
 	}
 
 	// If we have a callback in move, then we might be dragging a node around or a port connection.
 	if (qgl::Mouse::move.size() == 0 && draw::is_mouse_down(draw::MOUSE_RIGHT))
 	{
-		curr_context = Context::Popup;
+		qgl::Mouse::remove_callback(qgl::Mouse::press, node_press_callback);
+
+		for (Button& b : node_popup)
+		{
+			qgl::Mouse::release.push_back(b.on_click);
+		}
 	}
 }
-
 
 // Given the context we will push and pull this from the callback list
 // For instance, there is no popup, at least one node selected, etc
