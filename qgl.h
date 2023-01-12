@@ -123,8 +123,7 @@ namespace cm
         {
         public:
             static const FlagIndex WORLD = 0;
-            static const FlagIndex OCCLUDE_CHILDREN = 1;
-            Flag options[2] = { false, false };
+            Flag options[1] = { false };
 
             gradient fill{ color(1), color(1) };
             gradient outline;
@@ -141,7 +140,6 @@ namespace cm
 
             void move_to_parent(IElement* t_parent_ptr);
             virtual void draw();
-            void clip_children(bool flag);
 
             virtual Element& operator=(const Element& elem);
 
@@ -153,7 +151,7 @@ namespace cm
 
             Element* parent();
 
-            //void send_to_front();        
+            void send_to_front();        
         protected:
             vec m_size;
             IElement* parent_ptr = nullptr;

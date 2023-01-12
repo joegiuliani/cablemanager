@@ -59,6 +59,11 @@ glm::vec3 hsv(float h, float s, float v)
 	return ret + (v - chroma);
 }
 
+glm::vec3 gamma(glm::vec3 color, float g)
+{
+	return glm::pow(color, glm::vec3(1.0 / g));
+}
+
 Scene& active_scene()
 {
 	return *Scene::active_scene_ptr;
@@ -178,22 +183,22 @@ int main()
 	text_box.set_text_scale(24);*/
 
 	// We can store a constant amount of vertices for the curve buffer. 
-// Then we can specify for each draw how many of those vertices were actually going to use
+	// Then we can specify for each draw how many of those vertices were actually going to use
 
-/*
-glm::vec2 in(20, 20);
-glm::vec2 magnet(200, 400);
-glm::vec2 out(400, 200);
+	/*
+	glm::vec2 in(20, 20);
+	glm::vec2 magnet(200, 400);
+	glm::vec2 out(400, 200);
 
-float k = std::min(glm::distance(in, magnet), distance(magnet, out)) / 2.71f;
+	float k = std::min(glm::distance(in, magnet), distance(magnet, out)) / 2.71f;
 
-auto clamp_pos = [&](const glm::vec2& a, const glm::vec2& b, float c)
-{
-	return a + (b - a) * c / (std::max(c, glm::distance(a, b)));
-};
+	auto clamp_pos = [&](const glm::vec2& a, const glm::vec2& b, float c)
+	{
+		return a + (b - a) * c / (std::max(c, glm::distance(a, b)));
+	};
 
-glm::vec2 pre_magnet = clamp_pos(magnet, in, k);
-glm::vec2 post_magnet = clamp_pos(magnet, out, k);*/
+	glm::vec2 pre_magnet = clamp_pos(magnet, in, k);
+	glm::vec2 post_magnet = clamp_pos(magnet, out, k);*/
 
 
 	glm::vec2 v1 = qgl::screen_to_world_projection(qgl::world_to_screen_projection(glm::vec2(0)));
@@ -206,9 +211,3 @@ glm::vec2 post_magnet = clamp_pos(magnet, out, k);*/
 
     qgl::terminate();
 }
-
-
-// Two things might be happening
-
-// 1. When copied the label doesnt properly take pane as its parent
-// 2. pos() is broken.

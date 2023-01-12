@@ -50,13 +50,7 @@ namespace cm
 	{
 		return name + EXTENSION;
 	}
-	void Scene::foreach(std::function<void(Node& n)> fn)
-	{
-		for (auto& node : nodes)
-		{
-			fn(*node);
-		}
-	}
+
 	void Scene::save_as(std::string new_name)
 	{
 		name = new_name;
@@ -85,16 +79,6 @@ namespace cm
 
 			} writer.close_key();
 		}
-	}
-
-	Node& Scene::active_node()
-	{
-		return *active_node_ptr;
-	}
-
-	void Scene::set_active_node(Node& n)
-	{
-		active_node_ptr = &n;
 	}
 
 	void Scene::remove_node(Node& node_to_remove)

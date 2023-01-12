@@ -4,13 +4,12 @@ namespace cm
 {
 	Node::Node()
 	{
-		pane.fill.top = cm::color(0.3, 0.09, .15, 1);
-		pane.fill.bottom = pane.fill.top * 0.8f;
+		pane.fill.top = pane.fill.bottom = FILL;
 		pane.set_size(cm::vec(75, 75));
 		pane.options[qgl::Element::WORLD] = true;
 		pane.outline_thickness = 1.5;
-		pane.outline.top = cm::color(1);
-		pane.corner_radius = 4;
+		pane.outline.top = pane.outline.bottom = OUTLINE;
+		pane.corner_radius = 10;
 
 		label.set_text_scale(18);
 		label.set_size(cm::vec(100, 100));

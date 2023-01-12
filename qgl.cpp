@@ -16,18 +16,6 @@ namespace cm
         RootElement root_elem;
         bool end_of_program = false;
 
-        std::stack<std::pair<vec, vec>> scissor_stack;
-        void push_scissor(const vec& pos, const vec& size)
-        {
-            draw::scissor(pos, size);
-            scissor_stack.push(std::pair(pos, size));
-        }
-        void pop_scissor()
-        {
-            scissor_stack.pop();
-            draw::scissor(scissor_stack.top().first, scissor_stack.top().second);
-        }
-
         void init()
         {
             draw::init(640, 480);
@@ -118,19 +106,10 @@ namespace cm
 
         void IElement::draw()
         {
-            if (!enabled) return;
-            if (child_storage.size())
+            for (IElement* cep : child_storage)
             {
-                for (IElement* cep : child_storage)
-                {
-                    cep->draw();
-                }
+                cep->draw();
             }
-        }
-
-        void Element::clip_children(bool flag)
-        {
-            options[OCCLUDE_CHILDREN] = flag;
         }
 
         vec Element::size()
@@ -173,15 +152,7 @@ namespace cm
 
         void Element::draw()
         {
-            if (options[OCCLUDE_CHILDREN])
-            {
-                push_scissor(pos(), size());
-            }
             IElement::draw();
-            if (options[OCCLUDE_CHILDREN])
-            {
-                pop_scissor();
-            }
         }
 
         Element::Element()
@@ -239,12 +210,20 @@ namespace cm
 
         Element* Element::parent()
         {
-            if (parent_ptr == static_cast<IElement*>(&root_elem))
+            if (parent_ptr == &root_elem)
             {
                 return nullptr; // For now I don't want the end user having access to the root element.
             }
 
             return static_cast<Element*>(parent_ptr);
+        }
+
+        void Element::send_to_front()
+        {
+            auto it = std::find(parent_ptr->child_storage.begin(), parent_ptr->child_storage.end(), this);
+            if (it != parent_ptr->child_storage.end()) {
+                std::rotate(it, it + 1, parent_ptr->child_storage.end());
+            }
         }
 
         Curve::Curve() :Element()
@@ -286,42 +265,25 @@ namespace cm
         }
         void Shape::draw()
         {
+            if (!enabled) return;
+
+            float scale = options[WORLD] ? view_scale : 1.0f;
+            vec ppos = pos();
+            vec psize = size();
+            float pradius = corner_radius * scale;
+            float pthickness = outline_thickness * scale;
+
             draw::apply_mask(false);
             draw::draw_mask(true);
             draw::use_texture(false);
-
-            float scale = options[WORLD] ? view_scale : 1.0f;
-
-            vec spos = pos();
-
-            draw::shape_corner(scale * corner_radius);
-
+            draw::shape_corner(pradius);
             draw::shape_color(fill.top, fill.bottom);
-
-            draw::draw_rect(pos(), m_size * scale);
-
-            if (outline_thickness > 0)
-            {
-                if (outline_thickness * scale < 1 && options[WORLD] || outline_thickness < 1)
-                    draw::shape_color(color(glm::vec3(outline.top), outline_thickness * 0.8), color(glm::vec3(outline.bottom), outline_thickness * 0.8));
-
-                else
-                    draw::shape_color(outline.top, outline.bottom);
-
-                draw::draw_mask(false);
-                draw::apply_mask(true);
-
-                if (corner_radius > 0)
-                {
-                    draw::shape_corner(scale * (corner_radius + outline_thickness));
-                }
-
-                draw::draw_rect(pos() - outline_thickness * scale, size() + scale * outline_thickness * 2.0f);
-            }
+            draw::shape_outline(pthickness);
+            draw::shape_outline_color(outline.top, outline.bottom);
+            draw::draw_rect(pos(), psize);
 
             Element::draw();
         }
-
 
         TextBox::TextBox() :Element()
         {
@@ -367,6 +329,8 @@ namespace cm
                 draw::draw_text(cursor, str);
                 cursor.y += draw::get_text_size("").y;
             }
+
+            draw::stop_scissor();
 
             Element::draw();
         }

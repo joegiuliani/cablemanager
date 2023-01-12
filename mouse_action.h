@@ -20,7 +20,6 @@ namespace cm
 			static inline vec start;
 			static inline vec end;
 			static void begin();
-			static void reset();
 			static void move_callback();
 			static void release_callback();
 			static void init();
@@ -31,15 +30,24 @@ namespace cm
 		class DragNode
 		{
 		public:
-			static inline vec node_move_sep;
-			static inline vec node_move_start;
-			static inline Node* node_ptr;
-			static void begin(Node* t_node_ptr);
-			static void reset();
+			static inline vec start;
+			static void begin();
 			static void move_callback();
 			static void release_callback();
 		};
 
+		class Zoom
+		{
+		public:
+			static void scroll_callback();
+		};
+		class Pan
+		{
+		public:
+			static void begin();
+			static void move_callback();
+			static void release_callback();
+		};
 	}
 
 }

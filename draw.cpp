@@ -273,9 +273,8 @@ namespace draw
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        //glEnable(GL_DEPTH_TEST);
         glDisable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LEQUAL);
+        //glDepthFunc(GL_NOTEQUAL);
         glEnable(GL_MULTISAMPLE);
         glEnable(GL_STENCIL_TEST);
         glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
@@ -323,7 +322,6 @@ namespace draw
         glClearColor(0.15f, 0.15f, 0.155f, 1.0f);
 
         glStencilMask(~0);
-        glDisable(GL_SCISSOR_TEST);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
         frame_counter++;
     }
@@ -499,6 +497,22 @@ namespace draw
     void shape_corner(float size)
     {
         shape_shader.setFloat("corner_size", size);
+    }
+
+    void shape_outline(float thickness)
+    {
+        shape_shader.setFloat("outline_thickness", thickness);
+    }
+
+    void shape_outline_color(const glm::vec4& top, const glm::vec4& bottom)
+    {
+        shape_shader.setVec4("outline_top_color", top);
+        shape_shader.setVec4("outline_bottom_color", bottom);
+    }
+
+    void shape_outline_color(const glm::vec4& color)
+    {
+        shape_outline_color(color, color);
     }
 
     double get_time()

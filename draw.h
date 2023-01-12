@@ -153,6 +153,9 @@ namespace draw
 	void shape_color(const glm::vec4& top, const glm::vec4& bottom);
 	void shape_color(const glm::vec4& color);
 	void shape_corner(float size);
+	void shape_outline(float thickness);
+	void shape_outline_color(const glm::vec4& top, const glm::vec4& bottom);
+	void shape_outline_color(const glm::vec4& color);
 
 	double get_time();
 	double get_delta_time();

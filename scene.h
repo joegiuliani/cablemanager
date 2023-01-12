@@ -5,7 +5,7 @@
 #include <memory>
 #include <functional>
 #include "comman.h"
-
+#include <set>
 
 namespace cm
 {
@@ -25,22 +25,20 @@ namespace cm
 
 		CommandManager comman;
 
-		std::vector<Node*> selected_nodes;
+		typedef std::set<Node*, std::less<Node*>> NodePtrSet;
+		NodePtrSet selected_nodes;
 
 		void load(std::string file_path);
-		Node& active_node();
-		void set_active_node(Node& n);
+		Node* active_node_ptr = nullptr;
 		void remove_node(Node& node_to_remove);
-		void foreach(std::function<void(Node& n)> fn);
 
 		Node& add_node(const Node& n);
 
 		std::string get_file_name();
 
 		void save_as(std::string new_name);
-	private:
 		std::vector<std::shared_ptr<Node>> nodes;
-		Node* active_node_ptr = nullptr;
+	private:
 
 	};
 
