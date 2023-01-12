@@ -1,27 +1,29 @@
 #pragma once
-
 #include "qgl.h"
 #include <string>
 #include <iostream>
 
-class Port
+namespace cm
 {
-public:
-	std::string name;
-	unsigned long int id;
-	Port* connection = nullptr;
-
-	Port();
-	Port(const Port& p);
-	~Port();
-
-	void sever_connection();
-	void connection_severed();
-
-	void swap_id(Port& p)
+	class Port
 	{
-		std::swap(id, p.id);
-	}
+	public:
+		std::string name;
+		unsigned long int id;
+		Port* connection = nullptr;
 
-	qgl::Shape pane;
-};
+		Port();
+		Port(const Port& p);
+		~Port();
+
+		void sever_connection();
+		void connection_severed();
+
+		void swap_id(Port& p)
+		{
+			std::swap(id, p.id);
+		}
+
+		qgl::Shape pane;
+	};
+}

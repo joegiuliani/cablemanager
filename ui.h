@@ -1,13 +1,16 @@
 #pragma once
 #include "qgl.h"
 
-class Button
+namespace cm
 {
-public:
-	qgl::Shape pane;
-	qgl::TextBox label = qgl::TextBox(&pane);
-	cm::CallbackPtr on_click = nullptr;
+	class Button
+	{
+	public:
+		qgl::Shape pane;
+		qgl::TextBox label = qgl::TextBox(&pane);
+		cm::CallbackPtr on_click = nullptr;
 
-	Button(const std::string& name, cm::CallbackPtr action);
-	void highlight();
-};
+		Button(const std::string& name, cm::CallbackPtr action);
+		void highlight();
+	};
+}

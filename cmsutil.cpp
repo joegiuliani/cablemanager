@@ -3,135 +3,137 @@
 #include <iostream>
 #include <istream>
 
-std::string FILE_EXTENSION = ".cms";
-
-CMSReader::CMSReader(std::string name)
+namespace cm
 {
-	file.open(name + FILE_EXTENSION);
-	level_tracker.push(0);
-}
-CMSReader::~CMSReader()
-{
-	file.close();
-}
-
-bool CMSReader::find(char c)
-{
-	char rc;
-	while (file.get(rc))
+	std::string FILE_EXTENSION = ".cms";
+	CMSReader::CMSReader(std::string name)
 	{
-		if (c == rc) return true;
+		file.open(name + FILE_EXTENSION);
+		level_tracker.push(0);
+	}
+	CMSReader::~CMSReader()
+	{
+		file.close();
 	}
 
-	return false;
-}
-
-bool CMSReader::has_next_key()
-{
-	if (find('['))
+	bool CMSReader::find(char c)
 	{
-		file.unget();
-		return true;
+		char rc;
+		while (file.get(rc))
+		{
+			if (c == rc) return true;
+		}
+
+		return false;
 	}
 
-	return false;
-}
-
-std::string CMSReader::open_key()
-{               
-	if (!find('[')) throw std::exception("No key found");
-
-	std::string ret = "";
-	char c;
-	while (file.get(c))
+	bool CMSReader::has_next_key()
 	{
-		if (c == ']') break;
-		ret += c;
+		if (find('['))
+		{
+			file.unget();
+			return true;
+		}
+
+		return false;
 	}
 
-	level_tracker.push(0);
-
-	if (!find('{')) throw std::exception("No body found for key");
-
-	return ret;
-}
-
-void CMSReader::close_key()
-{
-	if (!find('}')) throw std::exception("No close bracket found for current key");
-	level_tracker.pop();
-}
-
-bool CMSReader::has_next_value()
-{
-	if (find('\"'))
+	std::string CMSReader::open_key()
 	{
-		file.unget();
-		return true;
+		if (!find('[')) throw std::exception("No key found");
+
+		std::string ret = "";
+		char c;
+		while (file.get(c))
+		{
+			if (c == ']') break;
+			ret += c;
+		}
+
+		level_tracker.push(0);
+
+		if (!find('{')) throw std::exception("No body found for key");
+
+		return ret;
 	}
 
-	return false;
-}
-
-std::string CMSReader::next_value()
-{
-	if (!find('\"')) throw std::exception("No value found");
-
-	std::string str = "";
-	char c;
-	while (file.get(c))
+	void CMSReader::close_key()
 	{
-		if (c == '\"') break;
-
-		str += c;
+		if (!find('}')) throw std::exception("No close bracket found for current key");
+		level_tracker.pop();
 	}
 
-	return str;
-} 
+	bool CMSReader::has_next_value()
+	{
+		if (find('\"'))
+		{
+			file.unget();
+			return true;
+		}
 
-CMSWriter::CMSWriter(std::string scene_name)
-{
-	file.open(scene_name + FILE_EXTENSION, std::ios::trunc);
-	depth_tracker.push(0);
+		return false;
+	}
+
+	std::string CMSReader::next_value()
+	{
+		if (!find('\"')) throw std::exception("No value found");
+
+		std::string str = "";
+		char c;
+		while (file.get(c))
+		{
+			if (c == '\"') break;
+
+			str += c;
+		}
+
+		return str;
+	}
+
+	CMSWriter::CMSWriter(std::string scene_name)
+	{
+		file.open(scene_name + FILE_EXTENSION, std::ios::trunc);
+		depth_tracker.push(0);
+	}
+
+	CMSWriter::~CMSWriter()
+	{
+		file.close();
+	}
+
+	void CMSWriter::add_data(std::string data)
+	{
+		// Add comma if needed
+		if (depth_tracker.size() && depth_tracker.top() > 0)
+			file << ',';
+
+		file << data;
+
+		depth_tracker.top()++;
+	}
+
+	void CMSWriter::open_key(std::string name)
+	{
+		add_data('[' + name + "]");
+
+		file << '{';
+		depth_tracker.push(0);
+	};
+
+	void CMSWriter::close_key()
+	{
+		file << "}";
+		depth_tracker.pop();
+	};
+
+	void CMSWriter::add_value(std::string val)
+	{
+		add_data('\"' + val + '\"');
+	};
+
+	void CMSWriter::add_vec(const glm::vec2& vec)
+	{
+		add_value(std::to_string(vec.x));
+		add_value(std::to_string(vec.y));
+	};
 }
-
-CMSWriter::~CMSWriter()
-{
-	file.close();
-}
-
-void CMSWriter::add_data(std::string data)
-{
-	// Add comma if needed
-	if (depth_tracker.size() && depth_tracker.top() > 0)
-		file << ',';
-
-	file << data;
-
-	depth_tracker.top()++;
-}
-
-void CMSWriter::open_key(std::string name)
-{
-	add_data('[' + name + "]");
-
-	file << '{';
-	depth_tracker.push(0);
-};
-
-void CMSWriter::close_key()
-{
-	file << "}";
-	depth_tracker.pop();
-};
-
-void CMSWriter::add_value(std::string val)
-{
-	add_data('\"' + val + '\"');
-};
-
-void CMSWriter::add_vec(const glm::vec2& vec)
-{
-	add_value(std::to_string(vec.x));
-	add_value(std::to_string(vec.y));
-};

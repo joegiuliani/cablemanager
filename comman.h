@@ -3,33 +3,37 @@
 #include <memory>
 #include <stack>
 
-class Command
+namespace cm
 {
-public:
-	virtual void execute() = 0;
-	virtual void reverse() = 0;
-};
-
-class CommandManager
-{
-public:
-	template<typename T>
-	static void add_command(T command)
+	class Command
 	{
-		clear_stack(available_redos);
+	public:
+		virtual void execute() = 0;
+		virtual void reverse() = 0;
+	};
 
-		available_undos.push(std::make_shared<T>(command));
-		available_undos.top()->execute();
-	}
+	class CommandManager
+	{
+	public:
+		template<typename T>
+		static void add_command(T command)
+		{
+			clear_stack(available_redos);
 
-	static void undo();
-	static void redo();
+			available_undos.push(std::make_shared<T>(command));
+			available_undos.top()->execute();
+		}
 
-	static void process_key_events();
+		static void undo();
+		static void redo();
 
-private:
-	typedef std::stack<std::shared_ptr<Command>> command_stack;
-	static inline command_stack available_undos;
-	static inline command_stack available_redos;
-	static void clear_stack(command_stack& s);
-};
+		static void process_key_events();
+
+	private:
+		typedef std::stack<std::shared_ptr<Command>> command_stack;
+		static inline command_stack available_undos;
+		static inline command_stack available_redos;
+		static void clear_stack(command_stack& s);
+	};
+
+}

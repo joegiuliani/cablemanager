@@ -11,6 +11,7 @@
 #include "node.h"
 #include "comman.h"
 #include "ui.h"
+#include "mouse_action.h"
 #include <cassert>
 
 using namespace cm;
@@ -58,36 +59,10 @@ glm::vec3 hsv(float h, float s, float v)
 	return ret + (v - chroma);
 }
 
-Scene* active_scene_ptr = nullptr;
 Scene& active_scene()
 {
-	return *active_scene_ptr;
+	return *Scene::active_scene_ptr;
 }
-
-class MoveNode : public Command
-{
-	Node* node_ptr = nullptr;
-	vec last_pos_world;
-	vec new_pos;
-public:
-	MoveNode(Node& n, vec pos)
-	{
-		last_pos_world = qgl::screen_to_world_projection(pos);
-		new_pos = qgl::screen_to_world_projection(n.pane.pos());
-		n.pane.set_pos(pos); // or whatever
-		node_ptr = &n;
-	}
-
-	virtual void execute()
-	{
-		node_ptr->pane.set_pos(qgl::world_to_screen_projection(new_pos));
-	}
-
-	virtual void reverse()
-	{
-		node_ptr->pane.set_pos(qgl::world_to_screen_projection(last_pos_world));
-	}
-};
 
 class DeleteNode : public Command
 {
@@ -113,52 +88,9 @@ public:
 	}
 };
 
-bool inside_rectangle(const glm::vec2& v, const glm::vec2& lower_bound, const glm::vec2& upper_bound) {
-	return (v.x >= lower_bound.x && v.x <= upper_bound.x && v.y >= lower_bound.y && v.y <= upper_bound.y);
-}
-
 Scene s;
-CommandManager comman;
-
-vec node_move_sep;
-vec node_move_start;
-
-bool inside_shape(const vec& pos, qgl::Element* elem)
-{
-	return inside_rectangle(pos, elem->pos(), elem->pos() + elem->size());
-}
-
-Node* node_under_mouse()
-{
-	s.foreach([&](Node& n)
-		{
-			if (inside_shape(qgl::Mouse::pos, &n.pane))
-			{
-				return &n;
-			}
-		});
-	
-
-	return nullptr;
-}
-
-void node_move_callback()
-{
-	s.active_node().pane.set_pos(qgl::Mouse::pos + node_move_sep);
-}
-
-void node_move_release_callback()
-{
-	comman.add_command(MoveNode(s.active_node(), node_move_start));
-
-	qgl::Mouse::remove_callback(qgl::Mouse::release, node_move_release_callback);
-	qgl::Mouse::remove_callback(qgl::Mouse::move, node_move_callback);
-
-	qgl::Mouse::press.push_back(node_press_callback);
-}
-
 std::vector<Button> node_popup;
-
+/*
 void popup_move_callback()
 {
 	for (Button& b : node_popup)
@@ -170,9 +102,14 @@ void popup_move_callback()
 	}
 }
 
-// What should happen is that upon 
+void popup_end()
+{
+	// Remove move callback
+	// Add node press callback
+	// Close popup
+}
 
-void popup_press_callback()
+void popup_press_callback()   
 {
 	bool inside_a_button = false;
 	for (Button& b : node_popup)
@@ -181,41 +118,16 @@ void popup_press_callback()
 		{
 			inside_a_button = true; // change this to a fixed boundary once the class is created
 			b.on_click();
+			
+			popup_end();
+
+			return;
 		}
 	}
 
-	if (!inside_a_button) // We close the popup
+	if (!inside_a_button)
 	{
-		
-	}
-}
-
-void node_press_callback()
-{
-	Node* node_ptr = node_under_mouse();
-	if (node_ptr == nullptr) return;
-	Node& node = *node_ptr;
-
-	if (draw::is_mouse_down(draw::MOUSE_LEFT))
-	{
-		s.set_active_node(node); // change this when implementing selection
-		node_move_start = node.pane.pos();
-		node_move_sep = node.pane.pos() - qgl::Mouse::pos;
-		qgl::Mouse::move.push_back(node_move_callback);
-		qgl::Mouse::release.push_back(node_move_release_callback);
-
-		qgl::Mouse::remove_callback(qgl::Mouse::press, node_press_callback);
-	}
-
-	// If we have a callback in move, then we might be dragging a node around or a port connection.
-	if (qgl::Mouse::move.size() == 0 && draw::is_mouse_down(draw::MOUSE_RIGHT))
-	{
-		qgl::Mouse::remove_callback(qgl::Mouse::press, node_press_callback);
-
-		for (Button& b : node_popup)
-		{
-			qgl::Mouse::release.push_back(b.on_click);
-		}
+		popup_end();
 	}
 }
 
@@ -225,45 +137,21 @@ void node_delete_callback()
 {
 	if (qgl::Keyboard::matches(std::set<int> {draw::KEY_DELETE}))
 	{
-		comman.add_command(DeleteNode(s.active_node()));
+		s.comman.add_command(DeleteNode(s.active_node()));
 	}
-}
+}*/
 
 int main()
 {
-	active_scene_ptr = &s;
     qgl::init();
 
-	// We can store a constant amount of vertices for the curve buffer. 
-	// Then we can specify for each draw how many of those vertices were actually going to use
-
-	//Node node("Hello");
-	/*
-	glm::vec2 in(20, 20);
-	glm::vec2 magnet(200, 400);
-	glm::vec2 out(400, 200);
-
-	float k = std::min(glm::distance(in, magnet), distance(magnet, out)) / 2.71f;
-
-	auto clamp_pos = [&](const glm::vec2& a, const glm::vec2& b, float c)
-	{
-		return a + (b - a) * c / (std::max(c, glm::distance(a, b)));
-	};
-
-	glm::vec2 pre_magnet = clamp_pos(magnet, in, k);
-	glm::vec2 post_magnet = clamp_pos(magnet, out, k);*/
-
-
 	s.load("first_scene.cms");
-
+	Scene::active_scene_ptr = &s;
 
 	qgl::Keyboard::add_callback(CommandManager::process_key_events);
+	//qgl::Keyboard::add_callback(node_delete_callback);
 
-	qgl::Mouse::press.push_back(
-		node_press_callback
-	);
-
-	qgl::Keyboard::add_callback(node_delete_callback);
+	MouseAction::PressNode::init();
 
 	// At some point i want to split classes like Node and Port into two separate structs - the gui and the actual data. 
 
@@ -288,6 +176,25 @@ int main()
 	text_box.set_text("whats up");
 	text_box.set_size(glm::vec2(40,40));
 	text_box.set_text_scale(24);*/
+
+	// We can store a constant amount of vertices for the curve buffer. 
+// Then we can specify for each draw how many of those vertices were actually going to use
+
+/*
+glm::vec2 in(20, 20);
+glm::vec2 magnet(200, 400);
+glm::vec2 out(400, 200);
+
+float k = std::min(glm::distance(in, magnet), distance(magnet, out)) / 2.71f;
+
+auto clamp_pos = [&](const glm::vec2& a, const glm::vec2& b, float c)
+{
+	return a + (b - a) * c / (std::max(c, glm::distance(a, b)));
+};
+
+glm::vec2 pre_magnet = clamp_pos(magnet, in, k);
+glm::vec2 post_magnet = clamp_pos(magnet, out, k);*/
+
 
 	glm::vec2 v1 = qgl::screen_to_world_projection(qgl::world_to_screen_projection(glm::vec2(0)));
     while (qgl::is_running())

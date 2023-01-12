@@ -8,529 +8,542 @@
 #include "qgl.h"
 #include <set>
 
-using namespace cm;
 
-namespace qgl
+namespace cm
 {
-    RootElement root_elem;
-    bool end_of_program = false;
-
-    void init()
+    namespace qgl
     {
-        draw::init(640, 480);
-    }
+        RootElement root_elem;
+        bool end_of_program = false;
 
-    bool is_running()
-    {
-        return draw::is_running();
-    }
-
-    void on_frame()
-    {
-        draw::begin_frame();
-
-        Keyboard::process_events();
-        Mouse::process_mouse_events();
-
-        root_elem.draw();
-       
-        draw::end_frame();
-    }
-
-    void terminate()
-    {
-        end_of_program = true;
-        draw::terminate();
-    }
-
-    void set_world_center(const vec& pos)
-    {
-        root_elem.set_pos(pos);
-    }
-
-    vec world_center()
-    {
-        return root_elem.pos();
-    }
-
-    vec screen_to_world_scale(const vec& v)
-    {
-        return v / view_scale;
-    }
-
-    vec world_to_screen_scale(const vec& v)
-    {
-        return view_scale * v;
-    }
-
-    vec screen_to_world_projection(const vec& v)
-    {
-        return screen_to_world_scale(v - draw::viewport_size() * 0.5f) + root_elem.pos();
-    }
-
-    vec world_to_screen_projection(const vec& v)
-    {
-        return world_to_screen_scale(v-root_elem.pos()) + draw::viewport_size() * 0.5f;
-    }
-
-    bool contains(const vec& value, const vec& min, const vec& max)
-    {
-        return value.x >= min.x && value.y >= min.y && value.x <= max.x && value.y <= max.y;
-    }
-
-    IElement::IElement()
-    {
-
-    }
-
-    vec RootElement::pos()
-    {
-        return m_pos;
-    }
-
-    void RootElement::set_pos(const vec& pos)
-    {
-        m_pos = pos;
-    }
-
-    void RootElement::draw()
-    {
-        for (IElement* cep : child_storage)
+        std::stack<std::pair<vec, vec>> scissor_stack;
+        void push_scissor(const vec& pos, const vec& size)
         {
-            cep->draw();
+            draw::scissor(pos, size);
+            scissor_stack.push(std::pair(pos, size));
         }
-    }
-
-    void IElement::draw()
-    {
-        if (child_storage.size())
+        void pop_scissor()
         {
-            for (IElement* cep : child_storage)
+            scissor_stack.pop();
+            draw::scissor(scissor_stack.top().first, scissor_stack.top().second);
+        }
+
+        void init()
+        {
+            draw::init(640, 480);
+        }
+
+        bool is_running()
+        {
+            return draw::is_running();
+        }
+
+        void on_frame()
+        {
+            draw::begin_frame();
+
+            Keyboard::process_events();
+            Mouse::process_mouse_events();
+
+            root_elem.draw();
+
+            draw::end_frame();
+        }
+
+        void terminate()
+        {
+            end_of_program = true;
+            draw::terminate();
+        }
+
+        void set_world_center(const vec& pos)
+        {
+            root_elem.set_pos(pos);
+        }
+
+        vec world_center()
+        {
+            return root_elem.pos();
+        }
+
+        vec screen_to_world_scale(const vec& v)
+        {
+            return v / view_scale;
+        }
+
+        vec world_to_screen_scale(const vec& v)
+        {
+            return view_scale * v;
+        }
+
+        vec screen_to_world_projection(const vec& v)
+        {
+            return screen_to_world_scale(v - draw::viewport_size() * 0.5f) + root_elem.pos();
+        }
+
+        vec world_to_screen_projection(const vec& v)
+        {
+            return world_to_screen_scale(v - root_elem.pos()) + draw::viewport_size() * 0.5f;
+        }
+
+        bool contains(const vec& value, const vec& min, const vec& max)
+        {
+            return value.x >= min.x && value.y >= min.y && value.x <= max.x && value.y <= max.y;
+        }
+
+        void IElement::set_enabled(bool flag)
+        {
+            enabled = flag;
+        }
+
+        IElement::IElement()
+        {
+
+        }
+
+        vec RootElement::pos()
+        {
+            return m_pos;
+        }
+
+        void RootElement::set_pos(const vec& pos)
+        {
+            m_pos = pos;
+        }
+
+        void RootElement::draw()
+        {
+            IElement::draw();
+        }
+
+        void IElement::draw()
+        {
+            if (!enabled) return;
+            if (child_storage.size())
             {
-                cep->draw();
+                for (IElement* cep : child_storage)
+                {
+                    cep->draw();
+                }
             }
         }
-    }
 
-    void Element::clip_children(bool flag)
-    {
-        options[OCCLUDE_CHILDREN] = flag;
-    }
-
-    vec Element::size()
-    {
-        return options[WORLD] ? world_to_screen_scale(m_size) : m_size;
-    }
-
-    void Element::set_size(const vec& v)
-    {
-        if (v.x < 0 || v.y < 0)
+        void Element::clip_children(bool flag)
         {
-            std::cout << "Shape size can't be negative\n";
-            return;
+            options[OCCLUDE_CHILDREN] = flag;
         }
 
-        m_size = options[WORLD] ? screen_to_world_scale(v) : v;
-    }
-
-    vec Element::pos()
-    {
-        vec ret = options[WORLD] ? world_to_screen_scale(m_pos) : m_pos;
-
-        IElement* curr_parent_ptr = parent_ptr;
-        while (curr_parent_ptr != &root_elem)
+        vec Element::size()
         {
-            Element* curr_parent = static_cast<Element*>(curr_parent_ptr);
-            ret += curr_parent->options[WORLD] ? world_to_screen_scale(curr_parent->m_pos) : curr_parent->m_pos;
-            curr_parent_ptr = curr_parent->parent_ptr;
+            return options[WORLD] ? world_to_screen_scale(m_size) : m_size;
         }
 
-        ret += root_elem.pos();
+        void Element::set_size(const vec& v)
+        {
+            if (v.x < 0 || v.y < 0)
+            {
+                std::cout << "Shape size can't be negative\n";
+                return;
+            }
 
-        return ret;
-    }
+            m_size = options[WORLD] ? screen_to_world_scale(v) : v;
+        }
 
-    void Element::set_pos(const vec& v)
-    {
-        m_pos = options[WORLD] ? screen_to_world_scale(v) : v;
-    }
+        vec Element::pos()
+        {
+            vec ret = options[WORLD] ? world_to_screen_scale(m_pos) : m_pos;
 
-    void Element::draw()
-    {
-        if (child_storage.size())
+            IElement* curr_parent_ptr = parent_ptr;
+            while (curr_parent_ptr != &root_elem)
+            {
+                Element* curr_parent = static_cast<Element*>(curr_parent_ptr);
+                ret += curr_parent->options[WORLD] ? world_to_screen_scale(curr_parent->m_pos) : curr_parent->m_pos;
+                curr_parent_ptr = curr_parent->parent_ptr;
+            }
+
+            ret += root_elem.pos();
+
+            return ret;
+        }
+
+        void Element::set_pos(const vec& v)
+        {
+            m_pos = options[WORLD] ? screen_to_world_scale(v) : v;
+        }
+
+        void Element::draw()
         {
             if (options[OCCLUDE_CHILDREN])
             {
-                draw::scissor(pos(), size());
+                push_scissor(pos(), size());
             }
-
-            for (IElement* cep : child_storage)
+            IElement::draw();
+            if (options[OCCLUDE_CHILDREN])
             {
-                cep->draw();
+                pop_scissor();
             }
-
-            draw::stop_scissor();
         }
-    }
 
-    Element::Element()
-    {
-        root_elem.child_storage.push_back(this);
-        parent_ptr = &root_elem;
-    }
+        Element::Element()
+        {
+            root_elem.child_storage.push_back(this);
+            parent_ptr = &root_elem;
+        }
 
-    Element::Element(const Element& elem)
-    {
-        operator=(elem);
-    }
+        Element::Element(const Element& elem)
+        {
+            operator=(elem);
+        }
 
-    Element& Element::operator=(const Element& elem)
-    {
-        elem.parent_ptr->child_storage.push_back(this);
-        parent_ptr = elem.parent_ptr;
-        std::memcpy(options, elem.options, 2);
-        fill = elem.fill;
-        outline = elem.outline;
-        shadow = elem.shadow;
-        outline_thickness = elem.outline_thickness;
-        shadow_sharpness = elem.shadow_sharpness;
-        shadow_offset = elem.shadow_offset;
-        m_size = elem.m_size;
-        m_pos = elem.m_pos;
+        Element& Element::operator=(const Element& elem)
+        {
+            elem.parent_ptr->child_storage.push_back(this);
+            parent_ptr = elem.parent_ptr;
+            std::memcpy(options, elem.options, 2);
+            fill = elem.fill;
+            outline = elem.outline;
+            shadow = elem.shadow;
+            outline_thickness = elem.outline_thickness;
+            shadow_sharpness = elem.shadow_sharpness;
+            shadow_offset = elem.shadow_offset;
+            m_size = elem.m_size;
+            m_pos = elem.m_pos;
 
-        return *this;
-    }
+            return *this;
+        }
 
-    Element::Element(IElement* t_parent_ptr)
-    {
-        parent_ptr = t_parent_ptr;
-        parent_ptr->child_storage.push_back(this);
-    }
+        Element::Element(IElement* t_parent_ptr)
+        {
+            parent_ptr = t_parent_ptr;
+            parent_ptr->child_storage.push_back(this);
+        }
 
-    void Element::move_to_parent(IElement* t_parent_ptr)
-    {
-        parent_ptr->child_storage.erase(std::remove(parent_ptr->child_storage.begin(), parent_ptr->child_storage.end(), this), parent_ptr->child_storage.end());
-        t_parent_ptr->child_storage.push_back(this);
-        parent_ptr = t_parent_ptr;
-    }
-
-    Element::~Element()
-    {
-        if (!end_of_program)
+        void Element::move_to_parent(IElement* t_parent_ptr)
         {
             parent_ptr->child_storage.erase(std::remove(parent_ptr->child_storage.begin(), parent_ptr->child_storage.end(), this), parent_ptr->child_storage.end());
-            for (auto* child_ptr : child_storage)
+            t_parent_ptr->child_storage.push_back(this);
+            parent_ptr = t_parent_ptr;
+        }
+
+        Element::~Element()
+        {
+            if (!end_of_program)
             {
-                static_cast<Element*>(child_ptr)->move_to_parent(&root_elem);
+                parent_ptr->child_storage.erase(std::remove(parent_ptr->child_storage.begin(), parent_ptr->child_storage.end(), this), parent_ptr->child_storage.end());
+                for (auto* child_ptr : child_storage)
+                {
+                    static_cast<Element*>(child_ptr)->move_to_parent(&root_elem);
+                }
             }
         }
-    }
 
-    Element* Element::parent()
-    {
-        if (parent_ptr == static_cast<IElement*>(&root_elem))
+        Element* Element::parent()
         {
-            return nullptr; // For now I don't want the end user having access to the root element.
-        }
-
-        return static_cast<Element*>(parent_ptr);
-    }
-
-    Curve::Curve():Element()
-    {
-    }
-    Curve::Curve(IElement* parent):Element(parent)
-    {
-    }
-    Curve::Curve(const Curve& curve)
-    {
-        operator=(curve);
-    }
-    Curve& Curve::operator=(const Curve& curve)
-    {
-        Element::operator=(curve);
-        points = curve.points;
-        return *this;
-    }
-    void Curve::draw()
-    {
-        draw::draw_curve(points);
-    }
-
-    Shape::Shape():Element()
-    {
-    }
-    Shape::Shape(IElement* parent) :Element(parent)
-    {
-    }
-    Shape::Shape(const Shape& shape)
-    {
-        operator=(shape);
-    }
-    Shape& Shape::operator=(const Shape& shape)
-    {
-        Element::operator=(shape);
-        corner_radius = shape.corner_radius;
-        return *this;
-    }
-
-    TextBox::TextBox() :Element()
-    {
-    }
-    TextBox::TextBox(IElement* parent) :Element(parent)
-    {
-    }
-    TextBox::TextBox(const TextBox& textbox)
-    {
-        operator=(textbox);
-    }
-
-    TextBox& TextBox::operator=(const TextBox& textbox)
-    {   
-        Element::operator=(textbox);
-
-        text = textbox.text;
-        lines = textbox.lines;
-        text_scale = textbox.text_scale;
-
-        return *this;
-    }
-
-    void TextBox::set_text(std::string str)
-    {
-        text = str;
-        calculate_wrap();
-    }
-
-    void TextBox::draw()
-    {
-        draw::apply_mask(false);
-        draw::draw_mask(false);
-        draw::shape_color(fill.top, fill.bottom);
-
-        float scale = options[WORLD] ? view_scale : 1.0f;
-        draw::set_text_scale(scale * text_scale);
-        draw::scissor(pos(), size());
-
-        vec cursor = pos();
-        for (const std::string& str : lines)
-        {
-            draw::draw_text(cursor, str);
-            cursor.y += draw::get_text_size("").y;
-        }
-
-        Element::draw();
-    }
-
-    void TextBox::set_size(const vec& s)
-    {
-        Element::set_size(s);
-        calculate_wrap();
-    }
-
-    void TextBox::set_text_scale(float s)
-    {
-        text_scale = s;
-        calculate_wrap();
-    }
-
-    void TextBox::calculate_wrap()
-    {
-        lines.clear();
-
-        draw::set_text_scale(text_scale);
-
-        int max_lines = std::ceilf(m_size.y / (draw::get_text_size("").y * text_scale));
-        std::string line = "";
-        float line_width = 0;
-        int token_start = 0;
-
-        for (int k = 0; k < text.length() && lines.size() < max_lines; k++)
-        {
-            if (text[k] == ' ')
+            if (parent_ptr == static_cast<IElement*>(&root_elem))
             {
-                std::string token = text.substr(token_start, k + 1 - token_start);
-                float token_width = draw::get_text_size(token).x * text_scale;
-                if (line_width + token_width < m_size.x)
-                {
-                    line += token;
-                    line_width = line_width + token_width;
-                }
+                return nullptr; // For now I don't want the end user having access to the root element.
+            }
+
+            return static_cast<Element*>(parent_ptr);
+        }
+
+        Curve::Curve() :Element()
+        {
+        }
+        Curve::Curve(IElement* parent) :Element(parent)
+        {
+        }
+        Curve::Curve(const Curve& curve)
+        {
+            operator=(curve);
+        }
+        Curve& Curve::operator=(const Curve& curve)
+        {
+            Element::operator=(curve);
+            points = curve.points;
+            return *this;
+        }
+        void Curve::draw()
+        {
+            draw::draw_curve(points);
+        }
+
+        Shape::Shape() :Element()
+        {
+        }
+        Shape::Shape(IElement* parent) :Element(parent)
+        {
+        }
+        Shape::Shape(const Shape& shape)
+        {
+            operator=(shape);
+        }
+        Shape& Shape::operator=(const Shape& shape)
+        {
+            Element::operator=(shape);
+            corner_radius = shape.corner_radius;
+            return *this;
+        }
+        void Shape::draw()
+        {
+            draw::apply_mask(false);
+            draw::draw_mask(true);
+            draw::use_texture(false);
+
+            float scale = options[WORLD] ? view_scale : 1.0f;
+
+            vec spos = pos();
+
+            draw::shape_corner(scale * corner_radius);
+
+            draw::shape_color(fill.top, fill.bottom);
+
+            draw::draw_rect(pos(), m_size * scale);
+
+            if (outline_thickness > 0)
+            {
+                if (outline_thickness * scale < 1 && options[WORLD] || outline_thickness < 1)
+                    draw::shape_color(color(glm::vec3(outline.top), outline_thickness * 0.8), color(glm::vec3(outline.bottom), outline_thickness * 0.8));
+
                 else
+                    draw::shape_color(outline.top, outline.bottom);
+
+                draw::draw_mask(false);
+                draw::apply_mask(true);
+
+                if (corner_radius > 0)
                 {
-                    if (line.empty())
+                    draw::shape_corner(scale * (corner_radius + outline_thickness));
+                }
+
+                draw::draw_rect(pos() - outline_thickness * scale, size() + scale * outline_thickness * 2.0f);
+            }
+
+            Element::draw();
+        }
+
+
+        TextBox::TextBox() :Element()
+        {
+        }
+        TextBox::TextBox(IElement* parent) :Element(parent)
+        {
+        }
+        TextBox::TextBox(const TextBox& textbox)
+        {
+            operator=(textbox);
+        }
+
+        TextBox& TextBox::operator=(const TextBox& textbox)
+        {
+            Element::operator=(textbox);
+
+            text = textbox.text;
+            lines = textbox.lines;
+            text_scale = textbox.text_scale;
+
+            return *this;
+        }
+
+        void TextBox::set_text(std::string str)
+        {
+            text = str;
+            calculate_wrap();
+        }
+
+        void TextBox::draw()
+        {
+            draw::apply_mask(false);
+            draw::draw_mask(false);
+            draw::shape_color(fill.top, fill.bottom);
+
+            float scale = options[WORLD] ? view_scale : 1.0f;
+            draw::set_text_scale(scale * text_scale);
+            draw::scissor(pos(), size());
+
+            vec cursor = pos();
+            for (const std::string& str : lines)
+            {
+                draw::draw_text(cursor, str);
+                cursor.y += draw::get_text_size("").y;
+            }
+
+            Element::draw();
+        }
+
+        void TextBox::set_size(const vec& s)
+        {
+            Element::set_size(s);
+            calculate_wrap();
+        }
+
+        void TextBox::set_text_scale(float s)
+        {
+            text_scale = s;
+            calculate_wrap();
+        }
+
+        void TextBox::calculate_wrap()
+        {
+            lines.clear();
+
+            draw::set_text_scale(text_scale);
+
+            int max_lines = std::ceilf(m_size.y / (draw::get_text_size("").y * text_scale));
+            std::string line = "";
+            float line_width = 0;
+            int token_start = 0;
+
+            for (int k = 0; k < text.length() && lines.size() < max_lines; k++)
+            {
+                if (text[k] == ' ')
+                {
+                    std::string token = text.substr(token_start, k + 1 - token_start);
+                    float token_width = draw::get_text_size(token).x * text_scale;
+                    if (line_width + token_width < m_size.x)
                     {
-                        lines.push_back(token);
+                        line += token;
+                        line_width = line_width + token_width;
                     }
                     else
                     {
-                        lines.push_back(line);
-                        line = token;
-                        line_width = token_width;
+                        if (line.empty())
+                        {
+                            lines.push_back(token);
+                        }
+                        else
+                        {
+                            lines.push_back(line);
+                            line = token;
+                            line_width = token_width;
+                        }
                     }
+
+                    token_start = k + 1;
+                }
+            }
+
+            if (token_start < text.length())
+            {
+                std::string final_token = text.substr(token_start);
+                if (line_width + draw::get_text_size(final_token).x < m_size.x)
+                {
+                    lines.push_back(line + final_token);
                 }
 
-                token_start = k + 1;
+                else
+                {
+                    lines.push_back(line);
+                    lines.push_back(final_token);
+                }
             }
-        }
-
-        if (token_start < text.length())
-        {
-            std::string final_token = text.substr(token_start);
-            if (line_width + draw::get_text_size(final_token).x < m_size.x)
-            {
-                lines.push_back(line + final_token);
-            }
-
             else
             {
                 lines.push_back(line);
-                lines.push_back(final_token);
             }
         }
-        else
+
+        std::string TextBox::get_text()
         {
-            lines.push_back(line);
+            return text;
         }
-    }
 
-    std::string TextBox::get_text()
-    {
-        return text;
-    }
-
-    void Shape::draw()
-    {
-        draw::apply_mask(false);
-        draw::draw_mask(true);
-        draw::use_texture(false);
-
-        float scale = options[WORLD] ? view_scale : 1.0f;
-
-        vec spos = pos();
-
-        draw::shape_corner(scale * corner_radius);
-
-        draw::shape_color(fill.top, fill.bottom);
-
-        draw::draw_rect(pos(), m_size * scale);
-
-        if (outline_thickness > 0)
+        bool Mouse::is_down(int button)
         {
-            if (outline_thickness * scale < 1 && options[WORLD] || outline_thickness < 1)
-                draw::shape_color(color(glm::vec3(outline.top), outline_thickness * 0.8), color(glm::vec3(outline.bottom), outline_thickness * 0.8));
+            return draw::is_mouse_down(button);
+        }
 
-            else
-                draw::shape_color(outline.top, outline.bottom);
+        void Mouse::remove_callback(CallbackList& cbl, CallbackPtr cb)
+        {
+            callbacks_to_remove.insert(std::pair(&cbl, cb));
+        }
 
-            draw::draw_mask(false);
-            draw::apply_mask(true);
+        void Mouse::process_mouse_events()
+        {
+            pos = draw::get_mouse_pos();
+            scroll_dir = draw::get_mouse_scroll();
+            delta = draw::get_mouse_delta();
 
-            if (corner_radius > 0)
+            auto call_list = [&](CallbackList cbl)
             {
-                draw::shape_corner(scale * (corner_radius + outline_thickness));
-            }
+                for (CallbackPtr cb : cbl)
+                {
+                    cb();
+                }
+            };
 
-            draw::draw_rect(pos() - outline_thickness * scale, size() + scale * outline_thickness * 2.0f);
-        }
+            // Note the qualifiers on the for each vars
+            if (draw::is_mouse_moving())
+                call_list(move);
 
-        Element::draw();
-    }
+            if (draw::is_mouse_pressed(draw::MOUSE_LEFT) ||
+                draw::is_mouse_pressed(draw::MOUSE_MIDDLE) ||
+                draw::is_mouse_pressed(draw::MOUSE_RIGHT))
+                call_list(press);
 
-    bool Mouse::is_down(int button)
-    {
-        return draw::is_mouse_down(button);
-    }
+            if (draw::is_mouse_released(draw::MOUSE_LEFT) ||
+                draw::is_mouse_released(draw::MOUSE_MIDDLE) ||
+                draw::is_mouse_released(draw::MOUSE_RIGHT))
+                call_list(release);
 
-    void Mouse::remove_callback(CallbackList& cbl, CallbackPtr cb)
-    {
-        callbacks_to_remove.insert(std::pair(&cbl, cb));
-    }
+            if (draw::get_mouse_scroll())
+                call_list(scroll);
 
-    void Mouse::process_mouse_events()
-    {
-        pos = draw::get_mouse_pos();
-        scroll_dir = draw::get_mouse_scroll();
-        delta = draw::get_mouse_delta();
-
-        auto call_list = [&](CallbackList cbl)
-        {
-            for (CallbackPtr cb : cbl)
+            for (auto& cbp : callbacks_to_remove)
             {
-                cb();
+                cbp.first->remove(cbp.second);
             }
-        };
 
-        // Note the qualifiers on the for each vars
-        if (draw::is_mouse_moving())
-            call_list(move);
-        
-        if (draw::is_mouse_pressed(draw::MOUSE_LEFT) ||
-            draw::is_mouse_pressed(draw::MOUSE_MIDDLE) ||
-            draw::is_mouse_pressed(draw::MOUSE_RIGHT))
-            call_list(press);
+            callbacks_to_remove.clear();
+        }
 
-        if (draw::is_mouse_released(draw::MOUSE_LEFT) ||
-            draw::is_mouse_released(draw::MOUSE_MIDDLE) ||
-            draw::is_mouse_released(draw::MOUSE_RIGHT))
-            call_list(release);
-
-        if (draw::get_mouse_scroll())
-            call_list(scroll);
-
-        for (auto& cbp : callbacks_to_remove)
+        bool Keyboard::matches(const std::set<int>& keys)
         {
-            cbp.first->remove(cbp.second);
-        }
-
-        callbacks_to_remove.clear();
-    }
-
-    bool Keyboard::matches(const std::set<int>& keys)
-    {
-        // Check if the sets have different sizes
-        if (draw::get_down_keys().size() != keys.size()) {
-            return false;
-        }
-
-        // Iterate through the elements in set1 and check if they are all in set2
-        for (int x : keys) {
-            if (draw::get_down_keys().count(x) == 0) {
+            // Check if the sets have different sizes
+            if (draw::get_down_keys().size() != keys.size()) {
                 return false;
             }
-        }
 
-        // If the loop completes, all the elements in set1 were found in set2
-        return true;
-        
-    }
-
-    void Keyboard::process_events()
-    {
-        if (draw::key_change_flag)
-        {
-            for (auto& cbp : callbacks)
-                cbp();
-        }
-        for (auto& cbp : callbacks_to_remove)
-        {
-            auto it = std::find(callbacks.begin(), callbacks.end(), cbp);
-            if (it != callbacks.end()) {
-                callbacks.erase(it);
+            // Iterate through the elements in set1 and check if they are all in set2
+            for (int x : keys) {
+                if (draw::get_down_keys().count(x) == 0) {
+                    return false;
+                }
             }
+
+            // If the loop completes, all the elements in set1 were found in set2
+            return true;
+
         }
 
-        callbacks_to_remove.clear();
+        void Keyboard::process_events()
+        {
+            if (draw::key_change_flag)
+            {
+                for (auto& cbp : callbacks)
+                    cbp();
+            }
+            for (auto& cbp : callbacks_to_remove)
+            {
+                auto it = std::find(callbacks.begin(), callbacks.end(), cbp);
+                if (it != callbacks.end()) {
+                    callbacks.erase(it);
+                }
+            }
+
+            callbacks_to_remove.clear();
+        }
+
+        void Keyboard::add_callback(CallbackPtr ptr)
+        {
+            callbacks.insert(ptr);
+        }
+
+        void Keyboard::remove_callback(CallbackPtr ptr)
+        {
+            callbacks_to_remove.insert(ptr);
+        }
     }
 
-    void Keyboard::add_callback(CallbackPtr ptr)
-    {
-        callbacks.insert(ptr);
-    }
-
-    void Keyboard::remove_callback(CallbackPtr ptr)
-    {
-        callbacks_to_remove.insert(ptr);
-    }
 }
 
